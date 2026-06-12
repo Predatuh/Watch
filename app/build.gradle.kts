@@ -21,7 +21,7 @@ android {
         applicationId = "com.predatuh.watchie"
         minSdk = 30
         targetSdk = 34
-        versionCode = 6
+        versionCode = 10
         versionName = "1.0"
     }
 
