@@ -21,7 +21,7 @@ android {
         applicationId = "com.predatuh.watchie"
         minSdk = 30
         targetSdk = 34
-        versionCode = 2
+        versionCode = 3
         versionName = "1.0"
     }
 
@@ -39,6 +39,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
             if (keystorePropsFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
