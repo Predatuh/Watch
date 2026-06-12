@@ -71,12 +71,18 @@ fun CuteNotesApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var pending by remember { mutableStateOf<IncomingNote?>(null) }
     var promptedUsername by remember { mutableStateOf(false) }
-    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
 
-    // Check for a newer published version.
-    LaunchedEffect(Unit) {
-        val info = UpdateChecker.check(BuildConfig.VERSION_CODE)
-        if (info.available) updateInfo = info
+    fun playerFor(payload: NotePayload, incoming: Boolean, peer: String): Screen = when (payload) {
+        is NotePayload.ExpressionNote -> Screen.Playing(expressionById(payload.expressionId), incoming, peer)
+        is NotePayload.FireworkNote -> Screen.PlayingFirework(payload.type, incoming, peer)
+        is NotePayload.DrawingNote -> Screen.PlayingDraw(payload.strokes, incoming, peer)
+        is NotePayload.TextNote -> Screen.PlayingText(payload.text, payload.effect, incoming, peer)
+    }
+
+    fun openPending() {
+        val note = pending ?: return
+        pending = null
+        screen = playerFor(note.payload, incoming = true, peer = note.from)
     }
 
     // Ask for notification permission (Android 13+) so pushes can show.
@@ -103,21 +109,6 @@ fun CuteNotesApp() {
         }
     }
 
-    // Notes arriving from friends: update the inbox and buzz.
-    LaunchedEffect(Unit) {
-        transport.incoming.collect { note ->
-            pending = note
-            Haptics.playNoteBuzz(context, settings)
-        }
-    }
-
-    fun playerFor(payload: NotePayload, incoming: Boolean, peer: String): Screen = when (payload) {
-        is NotePayload.ExpressionNote -> Screen.Playing(expressionById(payload.expressionId), incoming, peer)
-        is NotePayload.FireworkNote -> Screen.PlayingFirework(payload.type, incoming, peer)
-        is NotePayload.DrawingNote -> Screen.PlayingDraw(payload.strokes, incoming, peer)
-        is NotePayload.TextNote -> Screen.PlayingText(payload.text, payload.effect, incoming, peer)
-    }
-
     fun deliver(friend: Friend, payload: NotePayload) {
         scope.launch { transport.send(friend.uid, payload) }
         screen = playerFor(payload, incoming = false, peer = friend.username)
@@ -133,19 +124,18 @@ fun CuteNotesApp() {
         }
     }
 
-    fun openPending() {
-        val note = pending ?: return
-        pending = null // clear the inbox banner once opened
-        screen = playerFor(note.payload, incoming = true, peer = note.from)
+    // Notes arriving from friends: buzz, and pop the note up automatically
+    // (like a text) when you're on the home screen.
+    LaunchedEffect(Unit) {
+        transport.incoming.collect { note ->
+            pending = note
+            Haptics.playNoteBuzz(context, settings)
+            if (screen is Screen.Home) openPending()
+        }
     }
 
     MaterialTheme {
-        val update = updateInfo
         when {
-            update != null -> {
-                UpdateScreen(message = update.message, onDismiss = { updateInfo = null })
-                return@MaterialTheme
-            }
             !transport.initialized -> {
                 LoadingScreen()
                 return@MaterialTheme

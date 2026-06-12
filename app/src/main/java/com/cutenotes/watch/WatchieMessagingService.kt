@@ -21,10 +21,8 @@ class WatchieMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        val title = message.notification?.title ?: "Watchie 💌"
-        val body = message.notification?.body
-            ?: message.data["body"]
-            ?: "You got a note"
-        Notifications.show(applicationContext, title, body)
+        val from = message.data["fromName"] ?: message.notification?.title
+        val body = if (from != null) "@$from sent you a note" else (message.notification?.body ?: "You got a note")
+        Notifications.show(applicationContext, "Watchie 💌", body)
     }
 }

@@ -57,27 +57,12 @@ fun PhoneApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var composeFriend by remember { mutableStateOf<Friend?>(null) }
     var drawFriend by remember { mutableStateOf<Friend?>(null) }
     var sentPayload by remember { mutableStateOf<NotePayload?>(null) }
     var sentPeer by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) { transport.initialize() }
-    LaunchedEffect(Unit) {
-        val info = UpdateChecker.check(BuildConfig.VERSION_CODE)
-        if (info.available) updateInfo = info
-    }
-
-    updateInfo?.let { info ->
-        AlertDialog(
-            onDismissRequest = { updateInfo = null },
-            title = { Text("Update available") },
-            text = { Text(info.message) },
-            confirmButton = { TextButton(onClick = { openPlayStore(context); updateInfo = null }) { Text("Update") } },
-            dismissButton = { TextButton(onClick = { updateInfo = null }) { Text("Later") } },
-        )
-    }
 
     fun deliver(friend: Friend, payload: NotePayload) {
         scope.launch { transport.send(friend.uid, payload) }

@@ -41,8 +41,15 @@ object Notifications {
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
-            .apply { if (pending != null) setContentIntent(pending) }
+            .apply {
+                if (pending != null) {
+                    setContentIntent(pending)
+                    // Surface the note on a raised/awake watch without a tap.
+                    setFullScreenIntent(pending, true)
+                }
+            }
             .build()
 
         // notify() can throw if POST_NOTIFICATIONS isn't granted (API 33+).

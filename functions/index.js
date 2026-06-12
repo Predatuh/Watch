@@ -69,12 +69,11 @@ exports.onNoteCreated = onDocumentCreated(
       if (!token) return;
       const from = note.fromName || "a friend";
       try {
+        // Data message (no notification block) so the watch app's handler always
+        // runs and can post a full-screen note that surfaces on wrist-raise.
         await getMessaging().send({
           token,
-          notification: {
-            title: "Watchie 💌",
-            body: `@${from} sent you a note`,
-          },
+          data: {fromName: String(from)},
           android: {priority: "high"},
         });
       } catch (err) {

@@ -21,8 +21,8 @@ android {
         applicationId = "com.predatuh.watchie"
         minSdk = 30
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.2"
+        versionCode = 18
+        versionName = "1.3"
     }
 
     signingConfigs {
