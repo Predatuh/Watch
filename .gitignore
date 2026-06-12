@@ -8,6 +8,7 @@ local.properties
 
 # Firebase config — contains an API key; keep out of the public repo
 app/google-services.json
+mobile/google-services.json
 
 # Release signing — NEVER commit these (back them up somewhere safe!)
 release-keystore.jks
