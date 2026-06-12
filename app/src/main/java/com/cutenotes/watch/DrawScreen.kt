@@ -193,7 +193,7 @@ fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, onDismiss: ()
         }
 
         Text(
-            text = if (incoming) "From Alex 💕" else "Sent to Alex 💌",
+            text = if (incoming) "From ${transport.partnerName} 💕" else "Sent to ${transport.partnerName} 💌",
             color = Color.White,
             fontSize = 15.sp,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
