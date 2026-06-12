@@ -2,7 +2,6 @@ package com.cutenotes.watch
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -14,26 +13,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
 import kotlin.math.sin
 
 /**
- * One sendable "cute note". For now these are the building blocks we show on the
- * watch. Later, the exact same data is what one watch will send to another.
+ * One sendable "cute note". The same data is what one watch will eventually
+ * send to another.
  *
  * @param id      stable identifier (used later when sending over the network)
  * @param emoji   the big animated character shown on screen
  * @param label   short caption under the picker tile
- * @param accent  the theme color for this expression's full-screen background
- * @param style   how the emoji should move
- * @param particle optional little emoji that floats in the background
+ * @param accent  the theme color for this note's full-screen background
+ * @param style   how the emoji itself moves
+ * @param effect  the animated particle effect played behind the emoji
  */
 data class Expression(
     val id: String,
@@ -41,7 +38,7 @@ data class Expression(
     val label: String,
     val accent: Color,
     val style: AnimStyle,
-    val particle: String? = null,
+    val effect: Effect,
 )
 
 /** The different ways an expression's emoji can animate. */
@@ -49,22 +46,30 @@ enum class AnimStyle { PULSE, BOB, WIGGLE, SPIN, FLOAT }
 
 /** The full set of notes you can send. Add to this list to create new ones. */
 val expressions: List<Expression> = listOf(
-    Expression("love", "❤️", "Love you", Color(0xFFFF4D7E), AnimStyle.PULSE, particle = "💞"),
-    Expression("kiss", "😘", "Kiss", Color(0xFFFF7BA9), AnimStyle.BOB, particle = "💋"),
-    Expression("hug", "🤗", "Hug", Color(0xFFFFA45B), AnimStyle.WIGGLE, particle = "✨"),
-    Expression("excited", "🤩", "So excited!", Color(0xFFB36BFF), AnimStyle.SPIN, particle = "⭐"),
-    Expression("miss", "🥺", "Miss you", Color(0xFF5B8DEF), AnimStyle.BOB, particle = "💧"),
-    Expression("sleepy", "😴", "Goodnight", Color(0xFF6C6BBF), AnimStyle.FLOAT, particle = "💤"),
-    Expression("cheer", "🎉", "You got this", Color(0xFF2EC4B6), AnimStyle.WIGGLE, particle = "✨"),
-    Expression("flower", "🌸", "Thinking of you", Color(0xFFEF6FB3), AnimStyle.PULSE, particle = "🌸"),
-    Expression("morning", "☀️", "Good morning", Color(0xFFFFB300), AnimStyle.SPIN, particle = "✨"),
-    Expression("proud", "🥹", "So proud of you", Color(0xFF38B6FF), AnimStyle.BOB, particle = "💙"),
+    Expression("love", "❤️", "Love you", Color(0xFFFF4D7E), AnimStyle.PULSE, Effect.HEARTS),
+    Expression("amazing", "😍", "You're amazing", Color(0xFFFF6FA5), AnimStyle.PULSE, Effect.HEARTS),
+    Expression("kiss", "😘", "Kiss", Color(0xFFFF7BA9), AnimStyle.BOB, Effect.HEARTS),
+    Expression("excited", "🤩", "So excited!", Color(0xFFB36BFF), AnimStyle.SPIN, Effect.FIREWORKS),
+    Expression("party", "🥳", "Let's celebrate", Color(0xFFFF5DA2), AnimStyle.WIGGLE, Effect.CONFETTI),
+    Expression("cheer", "🎉", "You got this", Color(0xFF2EC4B6), AnimStyle.WIGGLE, Effect.CONFETTI),
+    Expression("laugh", "😂", "You crack me up", Color(0xFFFFB300), AnimStyle.WIGGLE, Effect.CONFETTI),
+    Expression("flower", "🌸", "Thinking of you", Color(0xFFEF6FB3), AnimStyle.PULSE, Effect.PETALS),
+    Expression("rainbow", "🌈", "Brighten your day", Color(0xFF7C6BFF), AnimStyle.BOB, Effect.PETALS),
+    Expression("proud", "🥹", "So proud of you", Color(0xFF38B6FF), AnimStyle.BOB, Effect.SPARKLE),
+    Expression("magic", "✨", "A little magic", Color(0xFF9B5DE5), AnimStyle.PULSE, Effect.SPARKLE),
+    Expression("star", "⭐", "You're a star", Color(0xFFF6C453), AnimStyle.SPIN, Effect.SPARKLE),
+    Expression("hug", "🤗", "Sending a hug", Color(0xFFFFA45B), AnimStyle.WIGGLE, Effect.SPARKLE),
+    Expression("morning", "☀️", "Good morning", Color(0xFFFFB300), AnimStyle.SPIN, Effect.STARBURST),
+    Expression("cool", "😎", "Looking good", Color(0xFF12B5C9), AnimStyle.BOB, Effect.STARBURST),
+    Expression("miss", "🥺", "Miss you", Color(0xFF5B8DEF), AnimStyle.BOB, Effect.BUBBLES),
+    Expression("sleepy", "😴", "Goodnight", Color(0xFF6C6BBF), AnimStyle.FLOAT, Effect.SNOW),
+    Expression("cozy", "⛄", "Stay cozy", Color(0xFF4F86C6), AnimStyle.FLOAT, Effect.SNOW),
 )
 
 /**
- * Plays a single expression full-screen: a colored background, floating
- * background particles, and the big animated emoji. This is what a received
- * note will look like when it arrives on the watch.
+ * Plays a single expression full-screen: a colored background, an animated
+ * particle effect, and the big animated emoji. This is what a received note
+ * looks like when it arrives on the watch.
  */
 @Composable
 fun ExpressionPlayer(expression: Expression, modifier: Modifier = Modifier) {
@@ -91,15 +96,10 @@ fun ExpressionPlayer(expression: Expression, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize().background(background),
         contentAlignment = Alignment.Center,
     ) {
+        // Animated particle effect (fireworks, hearts, petals, ...) behind the emoji.
+        EffectLayer(effect = expression.effect, accent = expression.accent, modifier = Modifier.fillMaxSize())
 
-        // Floating particles behind the emoji
-        if (expression.particle != null) {
-            repeat(5) { i ->
-                FloatingParticle(text = expression.particle, index = i)
-            }
-        }
-
-        // The main animated emoji
+        // The main animated emoji.
         val emojiModifier = when (expression.style) {
             AnimStyle.PULSE -> Modifier.graphicsLayer {
                 val s = 1f + 0.18f * wave
@@ -128,39 +128,6 @@ fun ExpressionPlayer(expression: Expression, modifier: Modifier = Modifier) {
             fontSize = 76.sp,
             textAlign = TextAlign.Center,
             modifier = emojiModifier,
-        )
-    }
-}
-
-/** A small emoji that drifts upward and fades, looping forever, staggered by index. */
-@Composable
-private fun FloatingParticle(text: String, index: Int) {
-    val transition = rememberInfiniteTransition(label = "particle$index")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2600, easing = LinearEasing),
-            initialStartOffset = StartOffset(offsetMillis = index * 520),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "p$index",
-    )
-
-    // Spread the particles horizontally and sway them as they rise.
-    val xSpread = (index - 2) * 34f
-    val sway = sin((progress + index) * 3.14159f) * 18f
-
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = text,
-            fontSize = 22.sp,
-            modifier = Modifier
-                .alpha((1f - progress).coerceIn(0f, 1f) * 0.9f)
-                .graphicsLayer {
-                    translationX = xSpread + sway
-                    translationY = 120f - progress * 260f
-                },
         )
     }
 }

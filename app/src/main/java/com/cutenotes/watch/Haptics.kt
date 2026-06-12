@@ -7,22 +7,29 @@ import android.os.Vibrator
 import android.os.VibratorManager
 
 /**
- * Vibration for when a note arrives. Default pattern: 5 quick ~0.5s buzzes.
- *
- * The pattern is a list of millisecond durations that alternate OFF, ON, OFF,
- * ON ... so we start with 0ms off, then 500 on / 150 off, five times.
+ * Vibration for when a note arrives. The pattern and strength come from the
+ * user's settings (default: 5 fast ~0.5s buzzes).
  */
 object Haptics {
 
-    // off, (buzz, gap) x5  ->  five ~half-second buzzes in fast succession.
-    private val NOTE_PATTERN = longArrayOf(0, 500, 150, 500, 150, 500, 150, 500, 150, 500)
+    /** Buzz for an incoming note, respecting the on/off + strength settings. */
+    fun playNoteBuzz(context: Context, settings: AppSettings) {
+        if (!settings.vibrationEnabled) return
+        buzz(context, settings.vibrationStrength)
+    }
 
-    fun playNoteBuzz(context: Context) {
+    /** Always buzz once at the given strength — used by the Settings "test" button. */
+    fun preview(context: Context, strength: VibrationStrength) {
+        buzz(context, strength)
+    }
+
+    private fun buzz(context: Context, strength: VibrationStrength) {
         val vibrator = vibrator(context) ?: return
         if (!vibrator.hasVibrator()) return
 
-        // -1 means "do not repeat" — play the pattern once.
-        val effect = VibrationEffect.createWaveform(NOTE_PATTERN, -1)
+        // amplitude 0 on the "off" segments (even indices), full strength on "on" segments.
+        val amplitudes = IntArray(strength.pattern.size) { i -> if (i % 2 == 0) 0 else strength.amplitude }
+        val effect = VibrationEffect.createWaveform(strength.pattern, amplitudes, -1)
         vibrator.vibrate(effect)
     }
 

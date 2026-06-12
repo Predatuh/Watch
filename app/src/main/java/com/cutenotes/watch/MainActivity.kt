@@ -3,6 +3,13 @@ package com.cutenotes.watch
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,9 +37,12 @@ import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.Vignette
+import androidx.wear.compose.material.VignettePosition
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -42,43 +52,71 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** The two things the screen can show: the home list, or one note playing full-screen. */
+/** Everything the screen can show. */
 private sealed interface Screen {
     data object Home : Screen
     data object Draw : Screen
+    data object Settings : Screen
     data class Playing(val expression: Expression, val incoming: Boolean) : Screen
+    data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean) : Screen
 }
 
 @Composable
 fun CuteNotesApp() {
-    // Current screen. Starts on Home; tapping a note switches to Playing.
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
 
     // A pretend note "from Alex" so you can see the receiving experience.
     val incomingNote = remember { expressions.first { it.id == "miss" } }
 
     MaterialTheme {
-        // Flip your wrist up to auto-open the latest note — but only while we're
-        // sitting on the home screen (not already viewing or drawing).
+        // Flip your wrist up to auto-open the latest note — only while on home.
         RaiseToWakeEffect(enabled = screen is Screen.Home) {
             screen = Screen.Playing(incomingNote, incoming = true)
         }
 
-        when (val s = screen) {
-            is Screen.Home -> HomeScreen(
-                incomingNote = incomingNote,
-                onOpenIncoming = { screen = Screen.Playing(incomingNote, incoming = true) },
-                onSend = { screen = Screen.Playing(it, incoming = false) },
-                onOpenDraw = { screen = Screen.Draw },
-            )
+        AnimatedContent(
+            targetState = screen,
+            transitionSpec = {
+                (fadeIn(tween(220)) + scaleIn(initialScale = 0.92f, animationSpec = tween(220)))
+                    .togetherWith(fadeOut(tween(150)) + scaleOut(targetScale = 1.05f, animationSpec = tween(150)))
+            },
+            label = "screens",
+        ) { current ->
+            when (current) {
+                is Screen.Home -> HomeScreen(
+                    incomingNote = incomingNote,
+                    onOpenIncoming = { screen = Screen.Playing(incomingNote, incoming = true) },
+                    onSend = { screen = Screen.Playing(it, incoming = false) },
+                    onOpenDraw = { screen = Screen.Draw },
+                    onOpenSettings = { screen = Screen.Settings },
+                )
 
-            is Screen.Draw -> DrawScreen(onClose = { screen = Screen.Home })
+                is Screen.Draw -> DrawScreen(
+                    onSend = { strokes -> screen = Screen.PlayingDraw(strokes, incoming = false) },
+                    onCancel = { screen = Screen.Home },
+                )
 
-            is Screen.Playing -> PlayingScreen(
-                expression = s.expression,
-                incoming = s.incoming,
-                onDismiss = { screen = Screen.Home },
-            )
+                is Screen.Settings -> SettingsScreen(
+                    settings = settings,
+                    onBack = { screen = Screen.Home },
+                )
+
+                is Screen.Playing -> PlayingScreen(
+                    expression = current.expression,
+                    incoming = current.incoming,
+                    settings = settings,
+                    onDismiss = { screen = Screen.Home },
+                )
+
+                is Screen.PlayingDraw -> DrawnNotePlayer(
+                    strokes = current.strokes,
+                    incoming = current.incoming,
+                    onDismiss = { screen = Screen.Home },
+                )
+            }
         }
     }
 }
@@ -89,9 +127,14 @@ private fun HomeScreen(
     onOpenIncoming: () -> Unit,
     onSend: (Expression) -> Unit,
     onOpenDraw: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }) {
+    Scaffold(
+        timeText = { TimeText() },
+        vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) },
+        positionIndicator = { PositionIndicator(scalingLazyListState = listState) },
+    ) {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -143,6 +186,17 @@ private fun HomeScreen(
                     label = { Text("Draw a note") },
                 )
             }
+
+            // Settings.
+            item {
+                Chip(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenSettings,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    icon = { Text("⚙️", fontSize = 20.sp) },
+                    label = { Text("Settings") },
+                )
+            }
         }
     }
 }
@@ -151,14 +205,14 @@ private fun HomeScreen(
 private fun PlayingScreen(
     expression: Expression,
     incoming: Boolean,
+    settings: AppSettings,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
 
-    // When a note arrives, buzz the watch (5 fast half-second pulses), then
-    // auto-close after a few seconds. The user can also tap to close sooner.
+    // When a note arrives, buzz the watch, then auto-close after a few seconds.
     LaunchedEffect(expression.id, incoming) {
-        if (incoming) Haptics.playNoteBuzz(context)
+        if (incoming) Haptics.playNoteBuzz(context, settings)
         delay(4500)
         onDismiss()
     }
@@ -168,10 +222,8 @@ private fun PlayingScreen(
             .fillMaxSize()
             .clickable(onClick = onDismiss),
     ) {
-        // The animated expression fills the screen.
         ExpressionPlayer(expression = expression)
 
-        // Caption: who it's from / who it's going to.
         Text(
             text = if (incoming) "From Alex 💕" else "Sent to Alex 💌",
             color = Color.White,
