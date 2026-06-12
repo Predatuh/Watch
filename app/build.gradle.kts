@@ -18,7 +18,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.cutenotes.watch"
+        applicationId = "com.predatuh.watchie"
         minSdk = 30
         targetSdk = 34
         versionCode = 1

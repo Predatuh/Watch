@@ -13,7 +13,7 @@ console steps below because they're tied to your Google account.
 1. Go to https://console.firebase.google.com and click **Add project**. Name it
    something like `cute-watch-notes`. You can turn Google Analytics off.
 2. In the project, click the **Android** icon to add an Android app.
-   - **Android package name:** `com.cutenotes.watch`  (must match exactly)
+   - **Android package name:** `com.predatuh.watchie`  (must match exactly)
    - Nickname/anything else: optional. Click **Register app**.
 3. **Download `google-services.json`** when it offers it. Put that file here:
    `app/google-services.json`  (next to `app/build.gradle.kts`)
