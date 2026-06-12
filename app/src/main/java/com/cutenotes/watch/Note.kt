@@ -12,6 +12,7 @@ sealed interface NotePayload {
     data class ExpressionNote(val expressionId: String) : NotePayload
     data class FireworkNote(val type: FireworkType) : NotePayload
     data class DrawingNote(val strokes: List<DrawnStroke>) : NotePayload
+    data class TextNote(val text: String, val effect: Effect) : NotePayload
 }
 
 /** A note that arrived from someone (by their username). */

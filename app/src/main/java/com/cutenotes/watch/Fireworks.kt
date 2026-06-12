@@ -47,15 +47,6 @@ fun FireworkPlayer(type: FireworkType, incoming: Boolean, peer: String, onDismis
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp),
         )
 
-        Text(
-            text = type.label,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 50.dp),
-        )
-
         DismissButton(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             onClick = onDismiss,

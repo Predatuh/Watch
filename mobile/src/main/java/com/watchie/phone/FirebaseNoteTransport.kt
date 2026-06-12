@@ -208,6 +208,11 @@ object FirebaseNoteTransport : NoteTransport {
                 )
             },
         )
+        is NotePayload.TextNote -> mapOf(
+            "kind" to "text",
+            "text" to payload.text,
+            "effect" to payload.effect.name,
+        )
     }
 
     private fun mapToPayload(data: Map<String, Any?>): NotePayload? = when (data["kind"]) {
@@ -228,6 +233,11 @@ object FirebaseNoteTransport : NoteTransport {
                 DrawnStroke(Color(colorL.toInt()), width, points)
             }
             NotePayload.DrawingNote(strokes)
+        }
+        "text" -> {
+            val text = data["text"] as? String ?: return null
+            val effect = runCatching { Effect.valueOf(data["effect"] as? String ?: "NONE") }.getOrDefault(Effect.NONE)
+            NotePayload.TextNote(text, effect)
         }
         else -> null
     }

@@ -32,7 +32,7 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 
-private const val PAGE_COUNT = 5
+private const val PAGE_COUNT = 6
 
 /**
  * The main screen: five swipeable category pages — Inbox, Expressions,
@@ -46,6 +46,7 @@ fun HomePager(
     onSendExpression: (Expression) -> Unit,
     onSendFirework: (FireworkType) -> Unit,
     onOpenDraw: () -> Unit,
+    onOpenWrite: () -> Unit,
     onOpenAddFriend: () -> Unit,
     onOpenUsername: () -> Unit,
 ) {
@@ -67,8 +68,9 @@ fun HomePager(
             when (page) {
                 0 -> InboxPage(pending, onOpenIncoming, onOpenAddFriend, onOpenUsername)
                 1 -> ExpressionsPage(onSendExpression)
-                2 -> FireworksPage(onSendFirework)
-                3 -> DrawPage(onOpenDraw)
+                2 -> WritePage(onOpenWrite)
+                3 -> FireworksPage(onSendFirework)
+                4 -> DrawPage(onOpenDraw)
                 else -> SettingsPage(settings)
             }
         }
@@ -213,6 +215,33 @@ private fun FireworksPage(onSend: (FireworkType) -> Unit) {
 }
 
 @Composable
+private fun WritePage(onOpenWrite: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("✍️", fontSize = 34.sp)
+        Spacer(Modifier.height(6.dp))
+        Text("Write a note", style = MaterialTheme.typography.title3, color = Color.White)
+        Spacer(Modifier.height(12.dp))
+        Chip(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenWrite,
+            colors = ChipDefaults.primaryChipColors(),
+            label = { Text("Type a note") },
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Type text + add an effect",
+            color = Color(0xFF888890),
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
 private fun DrawPage(onOpenDraw: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp),
@@ -295,4 +324,5 @@ private fun accentFor(payload: NotePayload): Color = when (payload) {
         expressions.firstOrNull { it.id == payload.expressionId }?.accent ?: Color(0xFFFF6B9D)
     is NotePayload.FireworkNote -> Color(0xFF7C3AED)
     is NotePayload.DrawingNote -> Color(0xFFFF6B9D)
+    is NotePayload.TextNote -> Color(0xFFFF6B9D)
 }

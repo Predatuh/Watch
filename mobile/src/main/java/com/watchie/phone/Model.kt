@@ -14,6 +14,7 @@ sealed interface NotePayload {
     data class ExpressionNote(val expressionId: String) : NotePayload
     data class FireworkNote(val type: FireworkType) : NotePayload
     data class DrawingNote(val strokes: List<DrawnStroke>) : NotePayload
+    data class TextNote(val text: String, val effect: Effect) : NotePayload
 }
 
 data class IncomingNote(val from: String, val payload: NotePayload)
@@ -27,8 +28,7 @@ fun isValidUsername(raw: String): Boolean =
 
 // ---- Expressions (the sendable notes) ----
 
-enum class AnimStyle { PULSE, BOB, WIGGLE, SPIN, FLOAT }
-enum class Effect { NONE, FIREWORKS, CONFETTI, HEARTS, PETALS, SPARKLE, BUBBLES, SNOW, STARBURST }
+// Effect + FireworkType enums live in Effects.kt (the ported particle engine).
 
 data class Expression(
     val id: String,
@@ -66,14 +66,6 @@ val expressions: List<Expression> = listOf(
 
 fun expressionById(id: String): Expression =
     expressions.firstOrNull { it.id == id } ?: expressions.first()
-
-enum class FireworkType(val label: String) {
-    PEONY("Peony"), CHRYSANTHEMUM("Chrysanthemum"), WILLOW("Willow"),
-    CRACKLE("Crackle"), FIRECRACKERS("Firecrackers"), STROBE("Strobe"),
-    RING("Ring"), RAINBOW("Rainbow"),
-}
-
-val fireworkTypes: List<FireworkType> = FireworkType.entries
 
 // ---- Transport ----
 

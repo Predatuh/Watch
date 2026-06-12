@@ -85,6 +85,8 @@ fun PhoneApp() {
     val scope = rememberCoroutineScope()
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var incoming by remember { mutableStateOf<IncomingNote?>(null) }
+    var writing by remember { mutableStateOf(false) }
+    var textPlay by remember { mutableStateOf<TextPlay?>(null) }
 
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
@@ -102,7 +104,14 @@ fun PhoneApp() {
         if (info.available) updateInfo = info
     }
     LaunchedEffect(Unit) {
-        transport.incoming.collect { incoming = it }
+        transport.incoming.collect { note ->
+            val p = note.payload
+            if (p is NotePayload.TextNote) {
+                textPlay = TextPlay(p.text, p.effect, incoming = true, peer = note.from)
+            } else {
+                incoming = note
+            }
+        }
     }
 
     // Dialogs that float over everything
@@ -119,13 +128,26 @@ fun PhoneApp() {
         IncomingDialog(note) { incoming = null }
     }
 
+    val play = textPlay
     when {
+        play != null -> TextNotePlayer(play.text, play.effect, play.incoming, play.peer) { textPlay = null }
         !transport.initialized -> Centered { CircularProgressIndicator() }
         !transport.isSignedIn -> AuthScreen()
         transport.myUsername == null -> UsernameScreen()
-        else -> HomeScreen()
+        writing -> WriteScreen(
+            friends = transport.friends,
+            onSend = { t, e, friend ->
+                scope.launch { transport.send(friend.uid, NotePayload.TextNote(t, e)) }
+                writing = false
+                textPlay = TextPlay(t, e, incoming = false, peer = friend.username)
+            },
+            onCancel = { writing = false },
+        )
+        else -> HomeScreen(onWrite = { writing = true })
     }
 }
+
+private data class TextPlay(val text: String, val effect: Effect, val incoming: Boolean, val peer: String)
 
 @Composable
 private fun LocalContextSafe(): Context = androidx.compose.ui.platform.LocalContext.current
@@ -231,7 +253,7 @@ private fun UsernameScreen() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreen() {
+private fun HomeScreen(onWrite: () -> Unit) {
     val scope = rememberCoroutineScope()
     val friends = transport.friends
     var showAdd by remember { mutableStateOf(false) }
@@ -248,6 +270,11 @@ private fun HomeScreen() {
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            Button(
+                onClick = onWrite,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            ) { Text("✍️  Write a note") }
+
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -359,11 +386,13 @@ private fun IncomingDialog(note: IncomingNote, onDismiss: () -> Unit) {
         is NotePayload.ExpressionNote -> expressionById(p.expressionId).emoji
         is NotePayload.FireworkNote -> "🎆"
         is NotePayload.DrawingNote -> "✏️"
+        is NotePayload.TextNote -> "💬"
     }
     val label = when (val p = note.payload) {
         is NotePayload.ExpressionNote -> expressionById(p.expressionId).label
-        is NotePayload.FireworkNote -> p.type.label
+        is NotePayload.FireworkNote -> "Fireworks"
         is NotePayload.DrawingNote -> "A drawing"
+        is NotePayload.TextNote -> p.text
     }
     AlertDialog(
         onDismissRequest = onDismiss,

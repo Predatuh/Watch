@@ -51,12 +51,14 @@ class MainActivity : ComponentActivity() {
 private sealed interface Screen {
     data object Home : Screen
     data object Draw : Screen
+    data object Write : Screen
     data object AddFriend : Screen
     data object Username : Screen
     data class FriendPicker(val payload: NotePayload) : Screen
     data class Playing(val expression: Expression, val incoming: Boolean, val peer: String) : Screen
     data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean, val peer: String) : Screen
     data class PlayingFirework(val type: FireworkType, val incoming: Boolean, val peer: String) : Screen
+    data class PlayingText(val text: String, val effect: Effect, val incoming: Boolean, val peer: String) : Screen
 }
 
 private fun expressionById(id: String): Expression =
@@ -115,6 +117,7 @@ fun CuteNotesApp() {
         is NotePayload.ExpressionNote -> Screen.Playing(expressionById(payload.expressionId), incoming, peer)
         is NotePayload.FireworkNote -> Screen.PlayingFirework(payload.type, incoming, peer)
         is NotePayload.DrawingNote -> Screen.PlayingDraw(payload.strokes, incoming, peer)
+        is NotePayload.TextNote -> Screen.PlayingText(payload.text, payload.effect, incoming, peer)
     }
 
     fun deliver(friend: Friend, payload: NotePayload) {
@@ -174,8 +177,13 @@ fun CuteNotesApp() {
                     onSendExpression = { startSend(NotePayload.ExpressionNote(it.id)) },
                     onSendFirework = { startSend(NotePayload.FireworkNote(it)) },
                     onOpenDraw = { screen = Screen.Draw },
+                    onOpenWrite = { screen = Screen.Write },
                     onOpenAddFriend = { screen = Screen.AddFriend },
                     onOpenUsername = { screen = Screen.Username },
+                )
+
+                is Screen.Write -> TextNoteScreen(
+                    onSend = { t, e -> startSend(NotePayload.TextNote(t, e)) },
                 )
 
                 is Screen.AddFriend -> AddFriendScreen(onDone = { screen = Screen.Home })
@@ -209,6 +217,14 @@ fun CuteNotesApp() {
 
                 is Screen.PlayingFirework -> FireworkPlayer(
                     type = current.type,
+                    incoming = current.incoming,
+                    peer = current.peer,
+                    onDismiss = { screen = Screen.Home },
+                )
+
+                is Screen.PlayingText -> TextNotePlayer(
+                    text = current.text,
+                    effect = current.effect,
                     incoming = current.incoming,
                     peer = current.peer,
                     onDismiss = { screen = Screen.Home },
