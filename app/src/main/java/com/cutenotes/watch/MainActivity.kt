@@ -57,8 +57,10 @@ private sealed interface Screen {
     data object Home : Screen
     data object Draw : Screen
     data object Settings : Screen
+    data object Fireworks : Screen
     data class Playing(val expression: Expression, val incoming: Boolean) : Screen
     data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean) : Screen
+    data class PlayingFirework(val type: FireworkType, val incoming: Boolean) : Screen
 }
 
 @Composable
@@ -91,7 +93,19 @@ fun CuteNotesApp() {
                     onOpenIncoming = { screen = Screen.Playing(incomingNote, incoming = true) },
                     onSend = { screen = Screen.Playing(it, incoming = false) },
                     onOpenDraw = { screen = Screen.Draw },
+                    onOpenFireworks = { screen = Screen.Fireworks },
                     onOpenSettings = { screen = Screen.Settings },
+                )
+
+                is Screen.Fireworks -> FireworksScreen(
+                    onSend = { type -> screen = Screen.PlayingFirework(type, incoming = false) },
+                    onBack = { screen = Screen.Home },
+                )
+
+                is Screen.PlayingFirework -> FireworkPlayer(
+                    type = current.type,
+                    incoming = current.incoming,
+                    onDismiss = { screen = Screen.Home },
                 )
 
                 is Screen.Draw -> DrawScreen(
@@ -127,6 +141,7 @@ private fun HomeScreen(
     onOpenIncoming: () -> Unit,
     onSend: (Expression) -> Unit,
     onOpenDraw: () -> Unit,
+    onOpenFireworks: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState()
@@ -153,6 +168,21 @@ private fun HomeScreen(
                     ),
                     label = { Text("💌  Alex sent you a note") },
                     secondaryLabel = { Text("Tap to open") },
+                )
+            }
+
+            // Fireworks "tab".
+            item {
+                Chip(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenFireworks,
+                    colors = ChipDefaults.gradientBackgroundChipColors(
+                        startBackgroundColor = Color(0xFF7C3AED),
+                        endBackgroundColor = Color(0xFF2563EB),
+                    ),
+                    icon = { Text("🎆", fontSize = 22.sp) },
+                    label = { Text("Fireworks") },
+                    secondaryLabel = { Text("Peony, Crackle, Willow…") },
                 )
             }
 

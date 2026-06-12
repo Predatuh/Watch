@@ -47,6 +47,12 @@ private class Particle(
     val swayFreq: Float = 0f,
     val phase: Float = 0f,
     val twinkle: Boolean = false,
+    val trail: Boolean = false,
+    // Crackle: when age passes crackleAt, spawn crackleCount tiny children once.
+    val crackleAt: Float = -1f,
+    val crackleCount: Int = 0,
+    val crackleColor: Color = Color.White,
+    var crackled: Boolean = false,
 )
 
 /** Picks the right effect composable for a note. */
@@ -54,7 +60,7 @@ private class Particle(
 fun EffectLayer(effect: Effect, accent: Color, modifier: Modifier = Modifier) {
     when (effect) {
         Effect.NONE -> Unit
-        Effect.FIREWORKS -> Fireworks(modifier, accent)
+        Effect.FIREWORKS -> FireworkEffect(FireworkType.RAINBOW, modifier)
         Effect.CONFETTI -> Confetti(modifier, accent)
         Effect.HEARTS -> Hearts(modifier, accent)
         Effect.PETALS -> Petals(modifier, accent)
@@ -138,6 +144,17 @@ private fun DrawScope.drawParticle(p: Particle) {
     val alpha = if (p.twinkle) sin((p.age / p.life).coerceIn(0f, 1f) * PI_F) else linear
     val color = p.color.copy(alpha = alpha.coerceIn(0f, 1f))
     val center = Offset(p.x, p.y)
+
+    // A short streak behind fast particles (firework tails).
+    if (p.trail) {
+        drawLine(
+            color = color.copy(alpha = alpha.coerceIn(0f, 1f) * 0.45f),
+            start = Offset(p.x - p.vx * 0.05f, p.y - p.vy * 0.05f),
+            end = center,
+            strokeWidth = p.size * 1.1f,
+        )
+    }
+
     when (p.shape) {
         Shape.CIRCLE -> drawCircle(color, p.size, center)
         Shape.RING -> drawCircle(color, p.size, center, style = Stroke(width = 2f))
@@ -193,29 +210,217 @@ private fun DrawScope.drawSparkle(center: Offset, radius: Float, color: Color) {
 // Individual effects
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Fireworks: a family of distinct shell types, each its own animation.
+// ---------------------------------------------------------------------------
+
+/** The different firework shells you can send. */
+enum class FireworkType(val label: String, val tagline: String) {
+    PEONY("Peony", "Classic round burst"),
+    CHRYSANTHEMUM("Chrysanthemum", "Long glittering tails"),
+    WILLOW("Willow", "Drooping golden rain"),
+    CRACKLE("Crackle", "Bursts, then crackles"),
+    FIRECRACKERS("Firecrackers", "Rapid-fire pops"),
+    STROBE("Strobe", "Flickering glitter"),
+    RING("Ring", "A perfect expanding ring"),
+    RAINBOW("Rainbow", "Every color at once"),
+}
+
+val fireworkTypes: List<FireworkType> = FireworkType.entries
+
+private val SHELL_COLORS = listOf(
+    Color(0xFFFF5D6C), Color(0xFFFFD166), Color(0xFF7CE0FF),
+    Color(0xFFB388FF), Color(0xFF8DF7B0), Color(0xFFFF9EC4), Color(0xFFFFFFFF),
+)
+
+/** Plays a single firework shell type, looping, on a transparent background. */
 @Composable
-private fun Fireworks(modifier: Modifier, accent: Color) {
-    val palette = remember(accent) { brightPalette(accent) }
+fun FireworkEffect(type: FireworkType, modifier: Modifier = Modifier) {
+    when (type) {
+        FireworkType.PEONY -> Peony(modifier)
+        FireworkType.CHRYSANTHEMUM -> Chrysanthemum(modifier)
+        FireworkType.WILLOW -> Willow(modifier)
+        FireworkType.CRACKLE -> Crackle(modifier)
+        FireworkType.FIRECRACKERS -> Firecrackers(modifier)
+        FireworkType.STROBE -> Strobe(modifier)
+        FireworkType.RING -> RingShell(modifier)
+        FireworkType.RAINBOW -> Rainbow(modifier)
+    }
+}
+
+/** Spawns one radial burst of particles centered at (cx, cy). */
+private fun radialBurst(
+    list: MutableList<Particle>,
+    cx: Float,
+    cy: Float,
+    count: Int,
+    speedMin: Float,
+    speedMax: Float,
+    life: Float,
+    size: Float,
+    trail: Boolean = false,
+    twinkle: Boolean = false,
+    jitter: Float = 0.15f,
+    fixedSpeed: Boolean = false,
+    crackleAt: Float = -1f,
+    crackleCount: Int = 0,
+    color: () -> Color,
+) {
+    for (k in 0 until count) {
+        val a = k.toFloat() / count * TAU + Random.nextFloat() * jitter
+        val sp = if (fixedSpeed) speedMax else speedMin + Random.nextFloat() * (speedMax - speedMin)
+        list.add(
+            Particle(
+                cx, cy, cos(a) * sp, sin(a) * sp,
+                life = life + Random.nextFloat() * 0.4f, size = size, color = color(),
+                shape = Shape.CIRCLE, trail = trail, twinkle = twinkle,
+                crackleAt = crackleAt, crackleCount = crackleCount,
+            ),
+        )
+    }
+}
+
+private fun randomLaunchSite(bounds: Size): Offset = Offset(
+    bounds.width * (0.22f + Random.nextFloat() * 0.56f),
+    bounds.height * (0.20f + Random.nextFloat() * 0.38f),
+)
+
+@Composable
+private fun Peony(modifier: Modifier) {
     val timer = remember { floatArrayOf(0f) }
-    ParticleField(modifier, gravity = 130f, drag = 0.8f) { list, bounds, dt ->
+    ParticleField(modifier, gravity = 110f, drag = 0.9f) { list, bounds, dt ->
         timer[0] -= dt
         if (timer[0] <= 0f) {
-            timer[0] = 0.4f + Random.nextFloat() * 0.5f
-            val cx = bounds.width * (0.2f + Random.nextFloat() * 0.6f)
-            val cy = bounds.height * (0.18f + Random.nextFloat() * 0.4f)
-            val color = palette[Random.nextInt(palette.size)]
-            val count = 22 + Random.nextInt(12)
-            for (k in 0 until count) {
-                val a = k.toFloat() / count * TAU + Random.nextFloat() * 0.2f
-                val sp = 55f + Random.nextFloat() * 130f
-                list.add(
-                    Particle(
-                        cx, cy, cos(a) * sp, sin(a) * sp,
-                        life = 1.0f + Random.nextFloat() * 0.8f,
-                        size = 2.5f + Random.nextFloat() * 2.5f,
-                        color = color, shape = Shape.CIRCLE,
-                    ),
-                )
+            timer[0] = 0.5f + Random.nextFloat() * 0.5f
+            val site = randomLaunchSite(bounds)
+            val color = SHELL_COLORS[Random.nextInt(SHELL_COLORS.size)]
+            radialBurst(list, site.x, site.y, count = 28, speedMin = 60f, speedMax = 150f, life = 1.1f, size = 3f) { color }
+        }
+    }
+}
+
+@Composable
+private fun Chrysanthemum(modifier: Modifier) {
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 95f, drag = 0.55f) { list, bounds, dt ->
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.6f + Random.nextFloat() * 0.5f
+            val site = randomLaunchSite(bounds)
+            val color = SHELL_COLORS[Random.nextInt(SHELL_COLORS.size)]
+            radialBurst(list, site.x, site.y, count = 26, speedMin = 80f, speedMax = 160f, life = 1.5f, size = 3f, trail = true) { color }
+        }
+    }
+}
+
+@Composable
+private fun Willow(modifier: Modifier) {
+    val gold = Color(0xFFFFD166)
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 42f, drag = 0.22f) { list, bounds, dt ->
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.9f + Random.nextFloat() * 0.5f
+            val site = randomLaunchSite(bounds)
+            radialBurst(list, site.x, site.y, count = 24, speedMin = 45f, speedMax = 110f, life = 2.4f, size = 2.6f, trail = true) { gold }
+        }
+    }
+}
+
+@Composable
+private fun Crackle(modifier: Modifier) {
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 110f, drag = 0.85f) { list, bounds, dt ->
+        // Secondary "crackle": when a parent reaches crackleAt, spawn tiny sparks.
+        val children = ArrayList<Particle>()
+        for (p in list) {
+            if (p.crackleAt >= 0f && !p.crackled && p.age >= p.crackleAt) {
+                p.crackled = true
+                repeat(p.crackleCount) {
+                    val a = Random.nextFloat() * TAU
+                    val sp = 20f + Random.nextFloat() * 50f
+                    children.add(
+                        Particle(
+                            p.x, p.y, cos(a) * sp, sin(a) * sp,
+                            life = 0.35f + Random.nextFloat() * 0.2f, size = 2f,
+                            color = Color.White, shape = Shape.CIRCLE, twinkle = true,
+                        ),
+                    )
+                }
+            }
+        }
+        list.addAll(children)
+
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.6f + Random.nextFloat() * 0.5f
+            val site = randomLaunchSite(bounds)
+            val color = SHELL_COLORS[Random.nextInt(SHELL_COLORS.size)]
+            radialBurst(
+                list, site.x, site.y, count = 20, speedMin = 60f, speedMax = 130f,
+                life = 1.1f, size = 3f, crackleAt = 0.8f, crackleCount = 4,
+            ) { color }
+        }
+    }
+}
+
+@Composable
+private fun Firecrackers(modifier: Modifier) {
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 70f, drag = 0.4f) { list, bounds, dt ->
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.07f + Random.nextFloat() * 0.12f
+            val cx = bounds.width * (0.1f + Random.nextFloat() * 0.8f)
+            val cy = bounds.height * (0.25f + Random.nextFloat() * 0.55f)
+            val white = if (Random.nextBoolean()) Color.White else Color(0xFFFFE39A)
+            // a bright flash plus a few sparks
+            list.add(Particle(cx, cy, 0f, 0f, life = 0.18f, size = 7f, color = Color.White, shape = Shape.CIRCLE))
+            radialBurst(list, cx, cy, count = 7, speedMin = 30f, speedMax = 95f, life = 0.5f, size = 2.4f) { white }
+        }
+    }
+}
+
+@Composable
+private fun Strobe(modifier: Modifier) {
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 70f, drag = 0.6f) { list, bounds, dt ->
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.55f + Random.nextFloat() * 0.4f
+            val site = randomLaunchSite(bounds)
+            radialBurst(list, site.x, site.y, count = 30, speedMin = 50f, speedMax = 140f, life = 1.3f, size = 3f, twinkle = true) {
+                if (Random.nextBoolean()) Color.White else SHELL_COLORS[Random.nextInt(SHELL_COLORS.size)]
+            }
+        }
+    }
+}
+
+@Composable
+private fun RingShell(modifier: Modifier) {
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 80f, drag = 0.7f) { list, bounds, dt ->
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.7f + Random.nextFloat() * 0.5f
+            val site = randomLaunchSite(bounds)
+            val color = SHELL_COLORS[Random.nextInt(SHELL_COLORS.size)]
+            // fixedSpeed + no jitter => a clean expanding ring.
+            radialBurst(list, site.x, site.y, count = 42, speedMin = 120f, speedMax = 120f, life = 1.2f, size = 2.6f, jitter = 0f, fixedSpeed = true) { color }
+        }
+    }
+}
+
+@Composable
+private fun Rainbow(modifier: Modifier) {
+    val timer = remember { floatArrayOf(0f) }
+    ParticleField(modifier, gravity = 115f, drag = 0.85f) { list, bounds, dt ->
+        timer[0] -= dt
+        if (timer[0] <= 0f) {
+            timer[0] = 0.45f + Random.nextFloat() * 0.45f
+            val site = randomLaunchSite(bounds)
+            radialBurst(list, site.x, site.y, count = 32, speedMin = 55f, speedMax = 150f, life = 1.1f, size = 3f) {
+                SHELL_COLORS[Random.nextInt(SHELL_COLORS.size)]
             }
         }
     }

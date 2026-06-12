@@ -64,6 +64,17 @@ val expressions: List<Expression> = listOf(
     Expression("miss", "🥺", "Miss you", Color(0xFF5B8DEF), AnimStyle.BOB, Effect.BUBBLES),
     Expression("sleepy", "😴", "Goodnight", Color(0xFF6C6BBF), AnimStyle.FLOAT, Effect.SNOW),
     Expression("cozy", "⛄", "Stay cozy", Color(0xFF4F86C6), AnimStyle.FLOAT, Effect.SNOW),
+    Expression("adore", "🥰", "Adore you", Color(0xFFFF5C8A), AnimStyle.PULSE, Effect.HEARTS),
+    Expression("rose", "🌹", "For you", Color(0xFFE63956), AnimStyle.PULSE, Effect.PETALS),
+    Expression("birthday", "🎂", "Happy birthday", Color(0xFFFF7AC8), AnimStyle.WIGGLE, Effect.CONFETTI),
+    Expression("highfive", "🙌", "High five!", Color(0xFFFFC23C), AnimStyle.WIGGLE, Effect.CONFETTI),
+    Expression("thanks", "🙏", "Thank you", Color(0xFF59C3C3), AnimStyle.BOB, Effect.SPARKLE),
+    Expression("wink", "😉", "Hey you", Color(0xFFEF8354), AnimStyle.BOB, Effect.SPARKLE),
+    Expression("music", "🎵", "Our song", Color(0xFF8E7CFF), AnimStyle.WIGGLE, Effect.SPARKLE),
+    Expression("coffee", "☕", "Coffee soon?", Color(0xFFB07D56), AnimStyle.PULSE, Effect.STARBURST),
+    Expression("sunset", "🌅", "Wish you were here", Color(0xFFFF7E5F), AnimStyle.PULSE, Effect.STARBURST),
+    Expression("moon", "🌙", "Sweet dreams", Color(0xFF3D5A99), AnimStyle.FLOAT, Effect.SNOW),
+    Expression("cat", "🐱", "Meow", Color(0xFFB5838D), AnimStyle.BOB, Effect.SPARKLE),
 )
 
 /**
