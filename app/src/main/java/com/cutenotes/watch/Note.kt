@@ -17,8 +17,8 @@ sealed interface NotePayload {
 /** A note that arrived from someone (by their username). */
 data class IncomingNote(val from: String, val payload: NotePayload)
 
-/** Someone on your friends list, identified by their unique username. */
-data class Friend(val uid: String, val username: String)
+/** Someone on your friends list. [streak] = consecutive days you've both messaged. */
+data class Friend(val uid: String, val username: String, val streak: Int = 0)
 
 /** Result of trying to claim a username. */
 enum class UsernameResult { OK, TAKEN, INVALID, ERROR }
@@ -82,7 +82,7 @@ object LoopbackTransport : NoteTransport {
     override val isDemo: Boolean = true
     override val initialized: Boolean = true
     override var myUsername: String? = "you"
-    override val friends: List<Friend> = listOf(Friend("demo-alex", "alex"))
+    override val friends: List<Friend> = listOf(Friend("demo-alex", "alex", streak = 5))
 
     private val _incoming = MutableSharedFlow<IncomingNote>(extraBufferCapacity = 16)
     override val incoming: SharedFlow<IncomingNote> = _incoming.asSharedFlow()

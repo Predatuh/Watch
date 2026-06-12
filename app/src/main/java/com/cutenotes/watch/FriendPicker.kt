@@ -48,6 +48,11 @@ fun FriendPicker(friends: List<Friend>, onPick: (Friend) -> Unit, onCancel: () -
                     colors = ChipDefaults.primaryChipColors(),
                     icon = { Text("👤", fontSize = 18.sp) },
                     label = { Text("@${friend.username}") },
+                    secondaryLabel = if (friend.streak > 0) {
+                        { Text("🔥 ${friend.streak}") }
+                    } else {
+                        null
+                    },
                 )
             }
             item {

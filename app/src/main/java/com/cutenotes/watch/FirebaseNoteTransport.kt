@@ -182,7 +182,11 @@ object FirebaseNoteTransport : NoteTransport {
             .addSnapshotListener { snaps, _ ->
                 if (snaps == null) return@addSnapshotListener
                 friends = snaps.documents.map { d ->
-                    Friend(uid = d.id, username = d.getString("username") ?: "friend")
+                    Friend(
+                        uid = d.id,
+                        username = d.getString("username") ?: "friend",
+                        streak = (d.getLong("streak") ?: 0L).toInt(),
+                    )
                 }
             }
     }
@@ -235,6 +239,7 @@ object FirebaseNoteTransport : NoteTransport {
         try {
             val data = payloadToMap(payload).toMutableMap()
             data["fromName"] = myUsername ?: "friend"
+            data["fromUid"] = uid ?: ""
             data["createdAt"] = FieldValue.serverTimestamp()
             db.collection("notes").document(toUid).collection("inbox").add(data).await()
         } catch (e: Exception) {
