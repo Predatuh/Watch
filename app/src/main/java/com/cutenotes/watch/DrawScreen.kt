@@ -52,8 +52,8 @@ private val INK_COLORS = listOf(
     Color(0xFFFFFFFF), // white
 )
 
-// label + stroke width for the three brush sizes
-private val BRUSHES = listOf(6f, 11f, 17f)
+// brush widths as a fraction of the canvas (so they scale across devices)
+private val BRUSHES = listOf(0.018f, 0.035f, 0.06f)
 
 /**
  * Finger-painting screen, clipped to a circle so it matches the round watch
@@ -81,12 +81,13 @@ fun DrawScreen(onSend: (List<DrawnStroke>) -> Unit, onCancel: () -> Unit) {
                 .clip(CircleShape)
                 .background(Color(0xFF101015))
                 .pointerInput(activeColor, activeWidth) {
+                    val canvas = androidx.compose.ui.geometry.Size(size.width.toFloat(), size.height.toFloat())
                     detectDragGestures(
                         onDragStart = { offset ->
-                            strokes.add(LiveStroke(activeColor, activeWidth).also { it.points.add(offset) })
+                            strokes.add(LiveStroke(activeColor, activeWidth).also { it.points.add(normalizeInSquare(offset, canvas)) })
                         },
                         onDrag = { change, _ ->
-                            strokes.lastOrNull()?.points?.add(change.position)
+                            strokes.lastOrNull()?.points?.add(normalizeInSquare(change.position, canvas))
                             change.consume()
                         },
                     )
@@ -98,7 +99,7 @@ fun DrawScreen(onSend: (List<DrawnStroke>) -> Unit, onCancel: () -> Unit) {
                     radius = size.minDimension / 2f - 1f,
                     style = Stroke(width = 2f),
                 )
-                strokes.forEach { drawStroke(it.color, it.width, it.points) }
+                drawNormalizedStrokes(strokes.map { DrawnStroke(it.color, it.width, it.points.toList()) })
             }
         }
 
@@ -183,12 +184,14 @@ fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, peer: String,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             var allowed = (progress.value * totalPoints).toInt()
+            val revealed = ArrayList<DrawnStroke>()
             for (stroke in strokes) {
                 if (allowed <= 0) break
                 val shown = minOf(allowed, stroke.points.size)
-                drawStroke(stroke.color, stroke.width, stroke.points.subList(0, shown))
+                revealed.add(DrawnStroke(stroke.color, stroke.width, stroke.points.subList(0, shown)))
                 allowed -= stroke.points.size
             }
+            drawNormalizedStrokes(revealed)
         }
 
         Text(
@@ -205,20 +208,3 @@ fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, peer: String,
     }
 }
 
-/** Draws one stroke as a smooth rounded poly-line. */
-private fun DrawScope.drawStroke(color: Color, width: Float, points: List<Offset>) {
-    when {
-        points.size > 1 -> {
-            val path = Path().apply {
-                moveTo(points.first().x, points.first().y)
-                for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
-            }
-            drawPath(
-                path = path,
-                color = color,
-                style = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round),
-            )
-        }
-        points.size == 1 -> drawCircle(color, radius = width / 2f, center = points.first())
-    }
-}

@@ -210,15 +210,7 @@ fun PhoneNotePlayer(payload: NotePayload, peer: String, onDismiss: () -> Unit) {
             }
             is NotePayload.DrawingNote -> {
                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-                    payload.strokes.forEach { s ->
-                        if (s.points.size > 1) {
-                            val path = Path().apply {
-                                moveTo(s.points.first().x, s.points.first().y)
-                                for (i in 1 until s.points.size) lineTo(s.points[i].x, s.points[i].y)
-                            }
-                            drawPath(path, s.color, style = Stroke(s.width, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                        }
-                    }
+                    drawNormalizedStrokes(payload.strokes)
                 }
             }
         }
