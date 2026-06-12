@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
 private sealed interface Screen {
     data object Home : Screen
     data object Draw : Screen
+    data object Pairing : Screen
     data class Playing(val expression: Expression, val incoming: Boolean) : Screen
     data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean) : Screen
     data class PlayingFirework(val type: FireworkType, val incoming: Boolean) : Screen
@@ -65,6 +66,9 @@ fun CuteNotesApp() {
     var pending by remember {
         mutableStateOf<IncomingNote?>(IncomingNote(transport.partnerName, NotePayload.ExpressionNote("miss")))
     }
+
+    // Sign in / connect once on launch.
+    LaunchedEffect(Unit) { transport.initialize() }
 
     // Listen for notes arriving from the transport: update the inbox and buzz.
     LaunchedEffect(Unit) {
@@ -109,7 +113,10 @@ fun CuteNotesApp() {
                         screen = Screen.PlayingFirework(type, incoming = false)
                     },
                     onOpenDraw = { screen = Screen.Draw },
+                    onOpenPairing = { screen = Screen.Pairing },
                 )
+
+                is Screen.Pairing -> PairingScreen(onDone = { screen = Screen.Home })
 
                 is Screen.Draw -> DrawScreen(
                     onSend = { strokes ->

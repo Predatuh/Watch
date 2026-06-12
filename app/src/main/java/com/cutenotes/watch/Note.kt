@@ -29,6 +29,21 @@ interface NoteTransport {
     val isDemo: Boolean
     val incoming: SharedFlow<IncomingNote>
     suspend fun send(payload: NotePayload)
+
+    /** Sign in / connect. No-op for the demo transport. */
+    suspend fun initialize() {}
+
+    /** Your shareable pairing code (null in demo). */
+    val myCode: String? get() = null
+
+    /** Whether a partner is linked. */
+    val isPaired: Boolean get() = true
+
+    /** Short human-readable connection status. */
+    val statusText: String get() = if (isDemo) "Demo mode" else "Connecting…"
+
+    /** Link to a partner by their code. Returns true on success. */
+    suspend fun pairWith(code: String): Boolean = true
 }
 
 /**
@@ -49,5 +64,5 @@ object LoopbackTransport : NoteTransport {
     }
 }
 
-/** The transport the app currently uses. Replace with the Firebase one later. */
-val transport: NoteTransport = LoopbackTransport
+/** The transport the app currently uses. Swap to LoopbackTransport for offline demo. */
+val transport: NoteTransport = FirebaseNoteTransport

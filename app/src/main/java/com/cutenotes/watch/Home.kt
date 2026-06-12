@@ -46,6 +46,7 @@ fun HomePager(
     onSendExpression: (Expression) -> Unit,
     onSendFirework: (FireworkType) -> Unit,
     onOpenDraw: () -> Unit,
+    onOpenPairing: () -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { PAGE_COUNT })
     val indicatorState = remember(pagerState) {
@@ -63,7 +64,7 @@ fun HomePager(
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
-                0 -> InboxPage(pending, transport.partnerName, transport.isDemo, onOpenIncoming)
+                0 -> InboxPage(pending, onOpenIncoming, onOpenPairing)
                 1 -> ExpressionsPage(onSendExpression)
                 2 -> FireworksPage(onSendFirework)
                 3 -> DrawPage(onOpenDraw)
@@ -76,7 +77,7 @@ fun HomePager(
 private fun pageColumn() = PaddingValues(horizontal = 8.dp, vertical = 30.dp)
 
 @Composable
-private fun InboxPage(pending: IncomingNote?, partner: String, demo: Boolean, onOpenIncoming: () -> Unit) {
+private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpenPairing: () -> Unit) {
     val listState = rememberScalingLazyListState()
     ScalingLazyColumn(
         state = listState,
@@ -96,7 +97,7 @@ private fun InboxPage(pending: IncomingNote?, partner: String, demo: Boolean, on
                         startBackgroundColor = accentFor(pending.payload),
                         endBackgroundColor = accentFor(pending.payload).copy(alpha = 0.5f),
                     ),
-                    label = { Text("💌  $partner sent you a note") },
+                    label = { Text("💌  ${pending.from} sent you a note") },
                     secondaryLabel = { Text("Tap to open") },
                 )
             } else {
@@ -104,12 +105,15 @@ private fun InboxPage(pending: IncomingNote?, partner: String, demo: Boolean, on
             }
         }
 
+        // Connection status + pairing entry.
         item {
-            Text(
-                text = if (demo) "Paired with $partner · Demo mode" else "Paired with $partner",
-                color = Color(0xFF8FE3A0),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 4.dp),
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenPairing,
+                colors = ChipDefaults.secondaryChipColors(),
+                icon = { Text(if (transport.isPaired) "🔗" else "➕", fontSize = 18.sp) },
+                label = { Text(if (transport.isPaired) "Connected" else "Connect a partner") },
+                secondaryLabel = { Text(transport.statusText) },
             )
         }
 

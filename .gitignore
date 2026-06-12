@@ -6,6 +6,9 @@ app/build/
 # Local config (machine-specific SDK path; never commit)
 local.properties
 
+# Firebase config — contains an API key; keep out of the public repo
+app/google-services.json
+
 # Android Studio / IntelliJ
 .idea/
 *.iml
