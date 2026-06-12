@@ -43,6 +43,18 @@ interface NoteTransport {
     /** True once initialize() has finished (so the UI knows when to prompt). */
     val initialized: Boolean get() = true
 
+    /** Whether a real (non-anonymous) account is signed in. */
+    val isSignedIn: Boolean get() = true
+
+    /** Create an account. Returns null on success, or an error message. */
+    suspend fun signUp(email: String, password: String): String? = null
+
+    /** Log into an existing account. Returns null on success, or an error message. */
+    suspend fun signIn(email: String, password: String): String? = null
+
+    /** Sign out of the current account. */
+    suspend fun signOut() {}
+
     /** Your unique username (null until you've chosen one). */
     val myUsername: String? get() = null
 

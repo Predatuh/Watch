@@ -71,6 +71,13 @@ fun CuteNotesApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var pending by remember { mutableStateOf<IncomingNote?>(null) }
     var promptedUsername by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+
+    // Check for a newer published version.
+    LaunchedEffect(Unit) {
+        val info = UpdateChecker.check(BuildConfig.VERSION_CODE)
+        if (info.available) updateInfo = info
+    }
 
     // Ask for notification permission (Android 13+) so pushes can show.
     val notifPermission = rememberLauncherForActivityResult(
@@ -88,9 +95,9 @@ fun CuteNotesApp() {
     // Sign in / connect once on launch.
     LaunchedEffect(Unit) { transport.initialize() }
 
-    // First launch with no username yet: prompt to choose one.
-    LaunchedEffect(transport.initialized, transport.myUsername) {
-        if (transport.initialized && transport.myUsername == null && !promptedUsername) {
+    // Once signed in with no username yet: prompt to choose one.
+    LaunchedEffect(transport.isSignedIn, transport.myUsername) {
+        if (transport.isSignedIn && transport.myUsername == null && !promptedUsername) {
             promptedUsername = true
             screen = Screen.Username
         }
@@ -132,6 +139,22 @@ fun CuteNotesApp() {
     }
 
     MaterialTheme {
+        val update = updateInfo
+        when {
+            update != null -> {
+                UpdateScreen(message = update.message, onDismiss = { updateInfo = null })
+                return@MaterialTheme
+            }
+            !transport.initialized -> {
+                LoadingScreen()
+                return@MaterialTheme
+            }
+            !transport.isSignedIn -> {
+                AuthScreen()
+                return@MaterialTheme
+            }
+        }
+
         // Flip your wrist up to open the latest note — only while on the pager.
         RaiseToWakeEffect(enabled = screen is Screen.Home) { openPending() }
 
@@ -192,6 +215,13 @@ fun CuteNotesApp() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun LoadingScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Connecting…", color = Color.White, fontSize = 14.sp)
     }
 }
 

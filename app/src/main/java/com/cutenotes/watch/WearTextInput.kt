@@ -34,6 +34,7 @@ fun WearTextInput(
     value: String,
     placeholder: String,
     label: String,
+    isPassword: Boolean = false,
     onValueChange: (String) -> Unit,
 ) {
     val launcher = rememberLauncherForActivityResult(
@@ -61,8 +62,13 @@ fun WearTextInput(
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val display = when {
+            value.isEmpty() -> placeholder
+            isPassword -> "•".repeat(value.length)
+            else -> value
+        }
         Text(
-            text = value.ifEmpty { placeholder },
+            text = display,
             color = if (value.isEmpty()) Color(0xFF777780) else Color.White,
             fontSize = 19.sp,
             textAlign = TextAlign.Center,

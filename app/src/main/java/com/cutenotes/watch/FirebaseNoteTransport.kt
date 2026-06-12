@@ -45,6 +45,8 @@ object FirebaseNoteTransport : NoteTransport {
     private var uid: String? = null
     override var initialized by mutableStateOf(false)
         private set
+    override var isSignedIn by mutableStateOf(false)
+        private set
     override var myUsername by mutableStateOf<String?>(null)
         private set
     override var statusText by mutableStateOf("Connecting…")
@@ -56,14 +58,49 @@ object FirebaseNoteTransport : NoteTransport {
     private var friendsListener: ListenerRegistration? = null
 
     override suspend fun initialize() {
+        val user = auth.currentUser
+        if (user != null && !user.isAnonymous) {
+            onAuthenticated(user.uid)
+        } else {
+            statusText = "Sign in to start"
+        }
+        initialized = true
+    }
+
+    override suspend fun signUp(email: String, password: String): String? {
+        return try {
+            val result = auth.createUserWithEmailAndPassword(email.trim(), password).await()
+            result.user?.uid?.let { onAuthenticated(it) }
+            null
+        } catch (e: Exception) {
+            authError(e)
+        }
+    }
+
+    override suspend fun signIn(email: String, password: String): String? {
+        return try {
+            val result = auth.signInWithEmailAndPassword(email.trim(), password).await()
+            result.user?.uid?.let { onAuthenticated(it) }
+            null
+        } catch (e: Exception) {
+            authError(e)
+        }
+    }
+
+    override suspend fun signOut() {
+        inboxListener?.remove()
+        friendsListener?.remove()
+        auth.signOut()
+        uid = null
+        isSignedIn = false
+        myUsername = null
+        friends = emptyList()
+        statusText = "Signed out"
+    }
+
+    private suspend fun onAuthenticated(id: String) {
+        uid = id
         try {
-            val user = auth.currentUser ?: auth.signInAnonymously().await().user
-            val id = user?.uid ?: run {
-                statusText = "Sign-in failed"
-                initialized = true
-                return
-            }
-            uid = id
             myUsername = db.collection("users").document(id).get().await().getString("username")
             startInboxListener(id)
             startFriendsListener(id)
@@ -71,8 +108,23 @@ object FirebaseNoteTransport : NoteTransport {
             statusText = if (myUsername == null) "Choose a username" else "Connected"
         } catch (e: Exception) {
             statusText = "Offline: ${e.message?.take(40) ?: "error"}"
-        } finally {
-            initialized = true
+        }
+        isSignedIn = true
+    }
+
+    private fun authError(e: Exception): String {
+        val m = e.message ?: "Something went wrong"
+        return when {
+            m.contains("password is invalid", true) || m.contains("INVALID_LOGIN", true) ||
+                m.contains("credential is incorrect", true) -> "Wrong email or password"
+            m.contains("no user record", true) || m.contains("USER_NOT_FOUND", true) -> "No account for that email"
+            m.contains("email address is already", true) || m.contains("EMAIL_EXISTS", true) -> "Email already in use"
+            m.contains("badly formatted", true) -> "Enter a valid email"
+            m.contains("at least 6", true) || m.contains("WEAK_PASSWORD", true) -> "Password needs 6+ characters"
+            m.contains("OPERATION_NOT_ALLOWED", true) || m.contains("not allowed", true) ->
+                "Email sign-in isn't enabled yet"
+            m.contains("network", true) -> "No internet connection"
+            else -> m.take(60)
         }
     }
 
