@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ class MainActivity : ComponentActivity() {
 /** The two things the screen can show: the home list, or one note playing full-screen. */
 private sealed interface Screen {
     data object Home : Screen
+    data object Draw : Screen
     data class Playing(val expression: Expression, val incoming: Boolean) : Screen
 }
 
@@ -56,12 +58,21 @@ fun CuteNotesApp() {
     val incomingNote = remember { expressions.first { it.id == "miss" } }
 
     MaterialTheme {
+        // Flip your wrist up to auto-open the latest note — but only while we're
+        // sitting on the home screen (not already viewing or drawing).
+        RaiseToWakeEffect(enabled = screen is Screen.Home) {
+            screen = Screen.Playing(incomingNote, incoming = true)
+        }
+
         when (val s = screen) {
             is Screen.Home -> HomeScreen(
                 incomingNote = incomingNote,
                 onOpenIncoming = { screen = Screen.Playing(incomingNote, incoming = true) },
                 onSend = { screen = Screen.Playing(it, incoming = false) },
+                onOpenDraw = { screen = Screen.Draw },
             )
+
+            is Screen.Draw -> DrawScreen(onClose = { screen = Screen.Home })
 
             is Screen.Playing -> PlayingScreen(
                 expression = s.expression,
@@ -77,6 +88,7 @@ private fun HomeScreen(
     incomingNote: Expression,
     onOpenIncoming: () -> Unit,
     onSend: (Expression) -> Unit,
+    onOpenDraw: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState()
     Scaffold(timeText = { TimeText() }) {
@@ -120,6 +132,17 @@ private fun HomeScreen(
                     label = { Text(expression.label) },
                 )
             }
+
+            // Draw-your-own note.
+            item {
+                Chip(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    onClick = onOpenDraw,
+                    colors = ChipDefaults.primaryChipColors(),
+                    icon = { Text("✏️", fontSize = 22.sp) },
+                    label = { Text("Draw a note") },
+                )
+            }
         }
     }
 }
@@ -130,8 +153,12 @@ private fun PlayingScreen(
     incoming: Boolean,
     onDismiss: () -> Unit,
 ) {
-    // Auto-close after a few seconds, or the user can tap to close sooner.
-    LaunchedEffect(expression.id) {
+    val context = LocalContext.current
+
+    // When a note arrives, buzz the watch (5 fast half-second pulses), then
+    // auto-close after a few seconds. The user can also tap to close sooner.
+    LaunchedEffect(expression.id, incoming) {
+        if (incoming) Haptics.playNoteBuzz(context)
         delay(4500)
         onDismiss()
     }

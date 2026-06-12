@@ -57,6 +57,8 @@ val expressions: List<Expression> = listOf(
     Expression("sleepy", "😴", "Goodnight", Color(0xFF6C6BBF), AnimStyle.FLOAT, particle = "💤"),
     Expression("cheer", "🎉", "You got this", Color(0xFF2EC4B6), AnimStyle.WIGGLE, particle = "✨"),
     Expression("flower", "🌸", "Thinking of you", Color(0xFFEF6FB3), AnimStyle.PULSE, particle = "🌸"),
+    Expression("morning", "☀️", "Good morning", Color(0xFFFFB300), AnimStyle.SPIN, particle = "✨"),
+    Expression("proud", "🥹", "So proud of you", Color(0xFF38B6FF), AnimStyle.BOB, particle = "💙"),
 )
 
 /**
