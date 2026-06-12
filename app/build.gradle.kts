@@ -21,7 +21,7 @@ android {
         applicationId = "com.predatuh.watchie"
         minSdk = 30
         targetSdk = 34
-        versionCode = 4
+        versionCode = 5
         versionName = "1.0"
     }
 
@@ -68,6 +68,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.wear.compose:compose-material:1.4.0")
     implementation("androidx.wear.compose:compose-foundation:1.4.0")
+    implementation("androidx.wear:wear-input:1.1.0")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.core:core-ktx:1.13.1")
 

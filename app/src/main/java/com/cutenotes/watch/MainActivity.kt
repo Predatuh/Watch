@@ -127,6 +127,7 @@ fun CuteNotesApp() {
 
     fun openPending() {
         val note = pending ?: return
+        pending = null // clear the inbox banner once opened
         screen = playerFor(note.payload, incoming = true, peer = note.from)
     }
 
@@ -201,16 +202,15 @@ private fun PlayingScreen(
     peer: String,
     onDismiss: () -> Unit,
 ) {
-    LaunchedEffect(expression.id) {
-        delay(4500)
-        onDismiss()
+    // Received notes stay until you clear them; sent confirmations auto-close.
+    LaunchedEffect(expression.id, incoming) {
+        if (!incoming) {
+            delay(4500)
+            onDismiss()
+        }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(onClick = onDismiss),
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         ExpressionPlayer(expression = expression)
 
         Text(
@@ -232,7 +232,12 @@ private fun PlayingScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 50.dp),
+        )
+
+        DismissButton(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            onClick = onDismiss,
         )
     }
 }

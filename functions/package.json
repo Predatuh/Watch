@@ -2,7 +2,7 @@
   "name": "functions",
   "description": "Watchie Cloud Functions — push a notification when a note arrives",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {

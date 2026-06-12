@@ -21,9 +21,11 @@ import kotlinx.coroutines.delay
 /** Full-screen firework show on a night sky, the way a sent shell will look. */
 @Composable
 fun FireworkPlayer(type: FireworkType, incoming: Boolean, peer: String, onDismiss: () -> Unit) {
-    LaunchedEffect(type) {
-        delay(6000)
-        onDismiss()
+    LaunchedEffect(type, incoming) {
+        if (!incoming) {
+            delay(6000)
+            onDismiss()
+        }
     }
 
     val nightSky = Brush.verticalGradient(
@@ -31,7 +33,7 @@ fun FireworkPlayer(type: FireworkType, incoming: Boolean, peer: String, onDismis
     )
 
     Box(
-        modifier = Modifier.fillMaxSize().background(nightSky).clickable(onClick = onDismiss),
+        modifier = Modifier.fillMaxSize().background(nightSky),
         contentAlignment = Alignment.Center,
     ) {
         FireworkEffect(type = type, modifier = Modifier.fillMaxSize())
@@ -51,7 +53,12 @@ fun FireworkPlayer(type: FireworkType, incoming: Boolean, peer: String, onDismis
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 50.dp),
+        )
+
+        DismissButton(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            onClick = onDismiss,
         )
     }
 }

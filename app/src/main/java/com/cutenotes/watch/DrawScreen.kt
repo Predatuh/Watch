@@ -172,14 +172,16 @@ fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, peer: String,
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         progress.animateTo(1f, animationSpec = tween(durationMillis = 1500))
-        delay(2500)
-        onDismiss()
+        if (!incoming) {
+            delay(2500)
+            onDismiss()
+        }
     }
 
     val totalPoints = remember(strokes) { strokes.sumOf { it.points.size }.coerceAtLeast(1) }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF0E0A12)).clickable(onClick = onDismiss),
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0E0A12)),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -197,6 +199,11 @@ fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, peer: String,
             color = Color.White,
             fontSize = 15.sp,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
+        )
+
+        DismissButton(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            onClick = onDismiss,
         )
     }
 }

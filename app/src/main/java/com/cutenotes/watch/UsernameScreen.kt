@@ -75,7 +75,13 @@ fun UsernameScreen(onDone: () -> Unit) {
                     textAlign = TextAlign.Center,
                 )
             }
-            item { UsernameField(entry) { entry = it } }
+            item {
+                WearTextInput(
+                    value = entry,
+                    placeholder = "tap to type",
+                    label = "Username",
+                ) { entry = it.lowercase().filter { c -> c.isLetterOrDigit() || c == '_' }.take(15) }
+            }
             item {
                 Text(
                     "3–15 letters, numbers, _",
@@ -119,34 +125,3 @@ fun UsernameScreen(onDone: () -> Unit) {
     }
 }
 
-@Composable
-private fun UsernameField(value: String, onChange: (String) -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(42.dp)
-            .clip(RoundedCornerShape(21.dp))
-            .background(Color(0xFF26262E))
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = { raw ->
-                onChange(raw.lowercase().filter { it.isLetterOrDigit() || it == '_' }.take(15))
-            },
-            singleLine = true,
-            textStyle = TextStyle(color = Color.White, fontSize = 19.sp, textAlign = TextAlign.Center),
-            cursorBrush = SolidColor(Color.White),
-            modifier = Modifier.fillMaxWidth(),
-            decorationBox = { inner ->
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
-                    if (value.isEmpty()) {
-                        Text("username", color = Color(0xFF666670), fontSize = 19.sp)
-                    }
-                    inner()
-                }
-            },
-        )
-    }
-}
