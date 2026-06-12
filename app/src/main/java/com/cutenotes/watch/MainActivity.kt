@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Notifications.ensureChannel(this) // so FCM notifications use our vibrating channel
         setContent { CuteNotesApp() }
     }
 }
@@ -124,14 +125,18 @@ fun CuteNotesApp() {
         }
     }
 
-    // Notes arriving from friends: buzz, and pop the note up automatically
-    // (like a text) when you're on the home screen.
+    // Notes arriving from friends: buzz and remember them.
     LaunchedEffect(Unit) {
         transport.incoming.collect { note ->
             pending = note
             Haptics.playNoteBuzz(context, settings)
-            if (screen is Screen.Home) openPending()
         }
+    }
+
+    // Pop a pending note up automatically whenever you're on the home screen —
+    // both on arrival and when you next open the app after missing one.
+    LaunchedEffect(pending, screen) {
+        if (pending != null && screen is Screen.Home) openPending()
     }
 
     MaterialTheme {

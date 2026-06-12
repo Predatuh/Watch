@@ -69,12 +69,19 @@ exports.onNoteCreated = onDocumentCreated(
       if (!token) return;
       const from = note.fromName || "a friend";
       try {
-        // Data message (no notification block) so the watch app's handler always
-        // runs and can post a full-screen note that surfaces on wrist-raise.
+        // A notification message so the system shows it even when the watch app
+        // is closed — buzzes, surfaces on wrist-raise, and persists like a text.
         await getMessaging().send({
           token,
+          notification: {
+            title: "Watchie 💌",
+            body: `@${from} sent you a note`,
+          },
           data: {fromName: String(from)},
-          android: {priority: "high"},
+          android: {
+            priority: "high",
+            notification: {channelId: "notes", priority: "high"},
+          },
         });
       } catch (err) {
         console.error("FCM send failed", err);

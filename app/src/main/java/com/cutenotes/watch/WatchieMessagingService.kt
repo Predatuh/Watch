@@ -20,9 +20,9 @@ class WatchieMessagingService : FirebaseMessagingService() {
             .set(mapOf("fcmToken" to token), SetOptions.merge())
     }
 
-    override fun onMessageReceived(message: RemoteMessage) {
-        val from = message.data["fromName"] ?: message.notification?.title
-        val body = if (from != null) "@$from sent you a note" else (message.notification?.body ?: "You got a note")
-        Notifications.show(applicationContext, "Watchie 💌", body)
-    }
+    // Notification messages are shown by the system when the app is in the
+    // background/closed (buzz + wrist-raise, like a text). When the app is in
+    // the foreground the in-app inbox listener plays the note directly, so we
+    // don't post a duplicate here.
+    override fun onMessageReceived(message: RemoteMessage) {}
 }
