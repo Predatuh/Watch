@@ -61,8 +61,6 @@ private sealed interface Screen {
     data class PlayingText(val text: String, val effect: Effect, val incoming: Boolean, val peer: String) : Screen
 }
 
-private fun expressionById(id: String): Expression =
-    expressions.firstOrNull { it.id == id } ?: expressions.first()
 
 @Composable
 fun CuteNotesApp() {

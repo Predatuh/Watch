@@ -38,9 +38,6 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
 import kotlinx.coroutines.delay
 
-/** A finished stroke: its color, thickness, and the points it traced. */
-data class DrawnStroke(val color: Color, val width: Float, val points: List<Offset>)
-
 /** While drawing, a stroke whose point list grows as the finger moves. */
 private class LiveStroke(val color: Color, val width: Float) {
     val points = mutableStateListOf<Offset>()

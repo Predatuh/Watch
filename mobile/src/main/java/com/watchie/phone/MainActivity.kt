@@ -1,5 +1,6 @@
 package com.watchie.phone
 
+import com.cutenotes.watch.*
 import android.Manifest
 import android.content.Context
 import android.content.Intent

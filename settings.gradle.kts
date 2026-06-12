@@ -14,5 +14,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "CuteWatchNotes"
+include(":core")
 include(":app")
 include(":mobile")
