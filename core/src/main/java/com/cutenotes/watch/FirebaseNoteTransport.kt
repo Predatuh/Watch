@@ -102,9 +102,11 @@ object FirebaseNoteTransport : NoteTransport {
         uid = id
         try {
             myUsername = db.collection("users").document(id).get().await().getString("username")
-            startInboxListener(id)
             startFriendsListener(id)
-            registerPushToken(id)
+            if (notesDeliveredHere) {
+                startInboxListener(id)
+                registerPushToken(id)
+            }
             statusText = if (myUsername == null) "Choose a username" else "Connected"
         } catch (e: Exception) {
             statusText = "Offline: ${e.message?.take(40) ?: "error"}"

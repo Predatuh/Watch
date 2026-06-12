@@ -1,22 +1,16 @@
 package com.watchie.phone
 
 import com.cutenotes.watch.*
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,25 +19,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,109 +34,78 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
-
-private val WatchieColors = lightColorScheme(
-    primary = Color(0xFFFF4D7E),
-    onPrimary = Color.White,
-    secondary = Color(0xFF7C6BFF),
-)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The phone is send-only; notes are viewable on the watch.
+        notesDeliveredHere = false
         setContent {
-            MaterialTheme(colorScheme = WatchieColors) {
-                Surface(modifier = Modifier.fillMaxSize()) { PhoneApp() }
-            }
+            MaterialTheme(colorScheme = WatchieDark) { PhoneApp() }
         }
     }
 }
 
 @Composable
 fun PhoneApp() {
-    val context = LocalContextSafe()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-    var incoming by remember { mutableStateOf<IncomingNote?>(null) }
-    var writing by remember { mutableStateOf(false) }
-    var textPlay by remember { mutableStateOf<TextPlay?>(null) }
 
-    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var composeFriend by remember { mutableStateOf<Friend?>(null) }
+    var drawFriend by remember { mutableStateOf<Friend?>(null) }
+    var sentPayload by remember { mutableStateOf<NotePayload?>(null) }
+    var sentPeer by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) { transport.initialize() }
     LaunchedEffect(Unit) {
         val info = UpdateChecker.check(BuildConfig.VERSION_CODE)
         if (info.available) updateInfo = info
     }
-    LaunchedEffect(Unit) {
-        transport.incoming.collect { note ->
-            val p = note.payload
-            if (p is NotePayload.TextNote) {
-                textPlay = TextPlay(p.text, p.effect, incoming = true, peer = note.from)
-            } else {
-                incoming = note
-            }
-        }
-    }
 
-    // Dialogs that float over everything
     updateInfo?.let { info ->
         AlertDialog(
             onDismissRequest = { updateInfo = null },
             title = { Text("Update available") },
             text = { Text(info.message) },
             confirmButton = { TextButton(onClick = { openPlayStore(context); updateInfo = null }) { Text("Update") } },
-            dismissButton = { TextButton(onClick = { updateInfo = null }) { Text("Not now") } },
+            dismissButton = { TextButton(onClick = { updateInfo = null }) { Text("Later") } },
         )
     }
-    incoming?.let { note ->
-        IncomingDialog(note) { incoming = null }
+
+    fun deliver(friend: Friend, payload: NotePayload) {
+        scope.launch { transport.send(friend.uid, payload) }
+        sentPeer = friend.username
+        sentPayload = payload
     }
 
-    val play = textPlay
+    val sp = sentPayload
+    val cf = composeFriend
+    val df = drawFriend
     when {
-        play != null -> TextNotePlayer(play.text, play.effect, play.incoming, play.peer) { textPlay = null }
-        !transport.initialized -> Centered { CircularProgressIndicator() }
+        sp != null -> PhoneNotePlayer(sp, sentPeer) { sentPayload = null }
+        !transport.initialized -> ScreenBg { Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = AccentPink) } }
         !transport.isSignedIn -> AuthScreen()
         transport.myUsername == null -> UsernameScreen()
-        writing -> WriteScreen(
-            friends = transport.friends,
-            onSend = { t, e, friend ->
-                scope.launch { transport.send(friend.uid, NotePayload.TextNote(t, e)) }
-                writing = false
-                textPlay = TextPlay(t, e, incoming = false, peer = friend.username)
-            },
-            onCancel = { writing = false },
+        df != null -> PhoneDrawScreen(
+            peer = df.username,
+            onSend = { strokes -> drawFriend = null; deliver(df, NotePayload.DrawingNote(strokes)) },
+            onCancel = { drawFriend = null },
         )
-        else -> HomeScreen(onWrite = { writing = true })
+        cf != null -> ComposeScreen(
+            peer = cf.username,
+            onSend = { payload -> composeFriend = null; deliver(cf, payload) },
+            onOpenDraw = { composeFriend = null; drawFriend = cf },
+            onBack = { composeFriend = null },
+        )
+        else -> HomeScreen(onFriendTap = { composeFriend = it })
     }
-}
-
-private data class TextPlay(val text: String, val effect: Effect, val incoming: Boolean, val peer: String)
-
-@Composable
-private fun LocalContextSafe(): Context = androidx.compose.ui.platform.LocalContext.current
-
-@Composable
-private fun Centered(content: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
 }
 
 @Composable
@@ -167,45 +117,40 @@ private fun AuthScreen() {
     var message by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("Watchie", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(8.dp))
-        Text(if (signUp) "Create your account" else "Welcome back", color = Color.Gray)
-        Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = email, onValueChange = { email = it.trim() },
-            label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(10.dp))
-        OutlinedTextField(
-            value = password, onValueChange = { password = it },
-            label = { Text("Password") }, singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-        )
-        if (message.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-        }
-        Spacer(Modifier.height(18.dp))
-        Button(
-            onClick = {
-                if (busy) return@Button
+    ScreenBg {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            BrandTitle(48)
+            Spacer(Modifier.height(6.dp))
+            Text(if (signUp) "Create your account" else "Welcome back", color = TextLo)
+            Spacer(Modifier.height(28.dp))
+            GlassField(email, { email = it.trim() }, "Email", isEmail = true)
+            Spacer(Modifier.height(12.dp))
+            GlassField(password, { password = it }, "Password", isPassword = true)
+            if (message.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(message, color = AccentPink, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(22.dp))
+            GradientButton(
+                text = if (busy) "Please wait…" else if (signUp) "Sign up" else "Log in",
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
+            ) {
                 scope.launch {
                     busy = true; message = ""
                     val err = if (signUp) transport.signUp(email, password) else transport.signIn(email, password)
                     busy = false
                     if (err != null) message = err
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) { Text(if (busy) "Please wait…" else if (signUp) "Sign up" else "Log in") }
-        Spacer(Modifier.height(6.dp))
-        TextButton(onClick = { signUp = !signUp; message = "" }) {
-            Text(if (signUp) "Have an account? Log in" else "New here? Sign up")
+            }
+            Spacer(Modifier.height(10.dp))
+            TextButton(onClick = { signUp = !signUp; message = "" }) {
+                Text(if (signUp) "Have an account? Log in" else "New here? Sign up", color = TextLo)
+            }
         }
     }
 }
@@ -216,28 +161,24 @@ private fun UsernameScreen() {
     var entry by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("Choose a username", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        Text("This is how friends add you", color = Color.Gray, fontSize = 13.sp)
-        Spacer(Modifier.height(20.dp))
-        OutlinedTextField(
-            value = entry,
-            onValueChange = { entry = it.lowercase().filter { c -> c.isLetterOrDigit() || c == '_' }.take(15) },
-            label = { Text("username") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
-        Text("3–15 letters, numbers, _", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
-        if (message.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-        }
-        Spacer(Modifier.height(18.dp))
-        Button(
-            onClick = {
+    ScreenBg {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text("Choose a username", color = TextHi, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("This is how friends add you", color = TextLo, fontSize = 13.sp)
+            Spacer(Modifier.height(22.dp))
+            GlassField(entry, { entry = it.lowercase().filter { c -> c.isLetterOrDigit() || c == '_' }.take(15) }, "username")
+            Text("3–15 letters, numbers, _", color = TextLo, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+            if (message.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(message, color = AccentPink, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(20.dp))
+            GradientButton("Claim it", modifier = Modifier.fillMaxWidth()) {
                 scope.launch {
                     when (transport.setUsername(entry)) {
                         UsernameResult.TAKEN -> message = "@${normalizeUsername(entry)} is taken"
@@ -246,65 +187,53 @@ private fun UsernameScreen() {
                         UsernameResult.OK -> {}
                     }
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) { Text("Claim it") }
+            }
+        }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreen(onWrite: () -> Unit) {
+private fun HomeScreen(onFriendTap: (Friend) -> Unit) {
     val scope = rememberCoroutineScope()
     val friends = transport.friends
     var showAdd by remember { mutableStateOf(false) }
-    var sendTo by remember { mutableStateOf<Friend?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = {
-                Column {
-                    Text("Watchie", fontWeight = FontWeight.Bold)
-                    Text("@${transport.myUsername ?: ""}", fontSize = 12.sp, color = Color.Gray)
+    ScreenBg {
+        Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    BrandTitle(30)
+                    Text("@${transport.myUsername ?: ""}", color = TextLo, fontSize = 13.sp)
                 }
-            })
-        },
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            Button(
-                onClick = onWrite,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-            ) { Text("✍️  Write a note") }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Friends", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Button(onClick = { showAdd = true }) { Text("+ Add") }
+                TextButton(onClick = { scope.launch { transport.signOut() } }) { Text("Log out", color = TextLo, fontSize = 12.sp) }
             }
+            Spacer(Modifier.height(20.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Friends", color = TextHi, fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier.size(width = 88.dp, height = 40.dp),
+                ) { GradientButton("+ Add", modifier = Modifier.fillMaxSize()) { showAdd = true } }
+            }
+            Spacer(Modifier.height(12.dp))
 
             if (friends.isEmpty()) {
-                Centered {
-                    Text("No friends yet.\nTap + Add and enter their username.", textAlign = TextAlign.Center, color = Color.Gray)
+                Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    Text("No friends yet.\nTap + Add and enter their username.", color = TextLo, textAlign = TextAlign.Center)
                 }
             } else {
-                LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(friends) { friend ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { sendTo = friend },
-                            colors = CardDefaults.cardColors(),
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text("@${friend.username}", fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                        GlassCard(onClick = { onFriendTap(friend) }) {
+                            Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(friend.username)
+                                Spacer(Modifier.size(14.dp))
+                                Text("@${friend.username}", color = TextHi, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, modifier = Modifier.weight(1f))
                                 if (friend.streak > 0) {
-                                    Text("🔥 ${friend.streak}", fontSize = 16.sp)
+                                    Text("🔥 ${friend.streak}", fontSize = 15.sp, color = TextHi)
+                                    Spacer(Modifier.size(8.dp))
                                 }
+                                Text("›", color = TextLo, fontSize = 22.sp)
                             }
                         }
                     }
@@ -314,7 +243,6 @@ private fun HomeScreen(onWrite: () -> Unit) {
     }
 
     if (showAdd) AddFriendDialog(onDismiss = { showAdd = false })
-    sendTo?.let { friend -> SendDialog(friend = friend, onDismiss = { sendTo = null }) }
 }
 
 @Composable
@@ -327,99 +255,26 @@ private fun AddFriendDialog(onDismiss: () -> Unit) {
         title = { Text("Add a friend") },
         text = {
             Column {
-                Text("You are @${transport.myUsername ?: ""}", fontSize = 13.sp, color = Color.Gray)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = entry,
-                    onValueChange = { entry = it.lowercase().filter { c -> c.isLetterOrDigit() || c == '_' }.take(15) },
-                    label = { Text("their username") }, singleLine = true,
-                )
-                if (message.isNotEmpty()) Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text("You are @${transport.myUsername ?: ""}", color = TextLo, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                GlassField(entry, { entry = it.lowercase().filter { c -> c.isLetterOrDigit() || c == '_' }.take(15) }, "their username")
+                if (message.isNotEmpty()) Text(message, color = AccentPink, fontSize = 12.sp)
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                scope.launch {
-                    if (transport.addFriend(entry) != null) onDismiss() else message = transport.statusText
-                }
+                scope.launch { if (transport.addFriend(entry) != null) onDismiss() else message = transport.statusText }
             }) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
-@Composable
-private fun SendDialog(friend: Friend, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Send to @${friend.username}") },
-        text = {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
-                modifier = Modifier.height(280.dp),
-            ) {
-                items(expressions) { expr ->
-                    Box(
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                scope.launch { transport.send(friend.uid, NotePayload.ExpressionNote(expr.id)) }
-                                onDismiss()
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(expr.emoji, fontSize = 30.sp)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
-}
-
-@Composable
-private fun IncomingDialog(note: IncomingNote, onDismiss: () -> Unit) {
-    val emoji = when (val p = note.payload) {
-        is NotePayload.ExpressionNote -> expressionById(p.expressionId).emoji
-        is NotePayload.FireworkNote -> "🎆"
-        is NotePayload.DrawingNote -> "✏️"
-        is NotePayload.TextNote -> "💬"
-    }
-    val label = when (val p = note.payload) {
-        is NotePayload.ExpressionNote -> expressionById(p.expressionId).label
-        is NotePayload.FireworkNote -> "Fireworks"
-        is NotePayload.DrawingNote -> "A drawing"
-        is NotePayload.TextNote -> p.text
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text("From @${note.from}", color = Color.Gray, fontSize = 13.sp)
-                Spacer(Modifier.height(12.dp))
-                Text(emoji, fontSize = 72.sp)
-                Spacer(Modifier.height(8.dp))
-                Text(label, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
-}
-
 private fun openPlayStore(context: Context) {
     val pkg = context.packageName
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    try {
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }

@@ -105,3 +105,10 @@ object LoopbackTransport : NoteTransport {
 
 /** The transport the app currently uses. Swap to LoopbackTransport for offline demo. */
 val transport: NoteTransport = FirebaseNoteTransport
+
+/**
+ * Whether this device receives/displays notes. The watch keeps this true; the
+ * phone sets it false (send-only) so notes are only viewable on the watch and
+ * the phone doesn't consume the inbox or claim the single push token.
+ */
+var notesDeliveredHere: Boolean = true
