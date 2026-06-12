@@ -47,7 +47,7 @@ fun FriendPicker(friends: List<Friend>, onPick: (Friend) -> Unit, onCancel: () -
                     onClick = { onPick(friend) },
                     colors = ChipDefaults.primaryChipColors(),
                     icon = { Text("👤", fontSize = 18.sp) },
-                    label = { Text(friend.name) },
+                    label = { Text("@${friend.username}") },
                 )
             }
             item {

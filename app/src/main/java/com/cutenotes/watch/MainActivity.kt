@@ -46,6 +46,7 @@ private sealed interface Screen {
     data object Home : Screen
     data object Draw : Screen
     data object AddFriend : Screen
+    data object Username : Screen
     data class FriendPicker(val payload: NotePayload) : Screen
     data class Playing(val expression: Expression, val incoming: Boolean, val peer: String) : Screen
     data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean, val peer: String) : Screen
@@ -63,9 +64,18 @@ fun CuteNotesApp() {
 
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var pending by remember { mutableStateOf<IncomingNote?>(null) }
+    var promptedUsername by remember { mutableStateOf(false) }
 
     // Sign in / connect once on launch.
     LaunchedEffect(Unit) { transport.initialize() }
+
+    // First launch with no username yet: prompt to choose one.
+    LaunchedEffect(transport.initialized, transport.myUsername) {
+        if (transport.initialized && transport.myUsername == null && !promptedUsername) {
+            promptedUsername = true
+            screen = Screen.Username
+        }
+    }
 
     // Notes arriving from friends: update the inbox and buzz.
     LaunchedEffect(Unit) {
@@ -83,7 +93,7 @@ fun CuteNotesApp() {
 
     fun deliver(friend: Friend, payload: NotePayload) {
         scope.launch { transport.send(friend.uid, payload) }
-        screen = playerFor(payload, incoming = false, peer = friend.name)
+        screen = playerFor(payload, incoming = false, peer = friend.username)
     }
 
     // Choose who to send to: straight through if you have exactly one friend.
@@ -122,9 +132,12 @@ fun CuteNotesApp() {
                     onSendFirework = { startSend(NotePayload.FireworkNote(it)) },
                     onOpenDraw = { screen = Screen.Draw },
                     onOpenAddFriend = { screen = Screen.AddFriend },
+                    onOpenUsername = { screen = Screen.Username },
                 )
 
                 is Screen.AddFriend -> AddFriendScreen(onDone = { screen = Screen.Home })
+
+                is Screen.Username -> UsernameScreen(onDone = { screen = Screen.Home })
 
                 is Screen.FriendPicker -> FriendPicker(
                     friends = transport.friends,

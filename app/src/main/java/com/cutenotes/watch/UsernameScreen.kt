@@ -40,9 +40,11 @@ import androidx.wear.compose.material.VignettePosition
 import kotlinx.coroutines.launch
 
 @Composable
-fun AddFriendScreen(onDone: () -> Unit) {
+fun UsernameScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var entry by remember { mutableStateOf("") }
+    val existing = transport.myUsername
+    var entry by remember { mutableStateOf(existing ?: "") }
+    var message by remember { mutableStateOf("") }
     val listState = rememberScalingLazyListState()
 
     Scaffold(
@@ -57,64 +59,68 @@ fun AddFriendScreen(onDone: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 30.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            item { Text("Add a friend", style = MaterialTheme.typography.title3, color = Color.White) }
-
             item {
                 Text(
-                    "You are @${transport.myUsername ?: "…"}",
+                    if (existing == null) "Choose a username" else "Your username",
+                    style = MaterialTheme.typography.title3,
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            item {
-                Text(
-                    "Enter their username",
-                    color = Color(0xFFAAAAB2),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            item { UsernameEntry(entry) { entry = it } }
-            item {
-                Text(
-                    transport.statusText,
-                    color = Color(0xFF9AA0AA),
-                    fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                 )
             }
             item {
+                Text(
+                    "This is how friends add you",
+                    color = Color(0xFFAAAAB2),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            item { UsernameField(entry) { entry = it } }
+            item {
+                Text(
+                    "3–15 letters, numbers, _",
+                    color = Color(0xFF888890),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (message.isNotEmpty()) {
+                item { Text(message, color = Color(0xFFFF8FA3), fontSize = 12.sp, textAlign = TextAlign.Center) }
+            }
+            item {
                 Chip(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { scope.launch { if (transport.addFriend(entry) != null) onDone() } },
+                    onClick = {
+                        scope.launch {
+                            message = ""
+                            when (transport.setUsername(entry)) {
+                                UsernameResult.OK -> onDone()
+                                UsernameResult.TAKEN -> message = "@${normalizeUsername(entry)} is taken"
+                                UsernameResult.INVALID -> message = "3–15 letters, numbers, _ only"
+                                UsernameResult.ERROR -> message = "Something went wrong"
+                            }
+                        }
+                    },
                     colors = ChipDefaults.primaryChipColors(),
-                    label = { Text("Add friend") },
+                    label = { Text(if (existing == null) "Claim it" else "Save") },
                 )
             }
-            item {
-                Chip(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    onClick = { scope.launch { transport.myUsername?.let { if (transport.addFriend(it) != null) onDone() } } },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    label = { Text("Add myself") },
-                    secondaryLabel = { Text("for testing on one watch") },
-                )
-            }
-            item {
-                Chip(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onDone,
-                    colors = ChipDefaults.secondaryChipColors(),
-                    label = { Text("← Back") },
-                )
+            if (existing != null) {
+                item {
+                    Chip(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onDone,
+                        colors = ChipDefaults.secondaryChipColors(),
+                        label = { Text("← Back") },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun UsernameEntry(value: String, onChange: (String) -> Unit) {
+private fun UsernameField(value: String, onChange: (String) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()

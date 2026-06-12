@@ -47,6 +47,7 @@ fun HomePager(
     onSendFirework: (FireworkType) -> Unit,
     onOpenDraw: () -> Unit,
     onOpenAddFriend: () -> Unit,
+    onOpenUsername: () -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { PAGE_COUNT })
     val indicatorState = remember(pagerState) {
@@ -64,7 +65,7 @@ fun HomePager(
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
-                0 -> InboxPage(pending, onOpenIncoming, onOpenAddFriend)
+                0 -> InboxPage(pending, onOpenIncoming, onOpenAddFriend, onOpenUsername)
                 1 -> ExpressionsPage(onSendExpression)
                 2 -> FireworksPage(onSendFirework)
                 3 -> DrawPage(onOpenDraw)
@@ -77,9 +78,15 @@ fun HomePager(
 private fun pageColumn() = PaddingValues(horizontal = 8.dp, vertical = 30.dp)
 
 @Composable
-private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpenAddFriend: () -> Unit) {
+private fun InboxPage(
+    pending: IncomingNote?,
+    onOpenIncoming: () -> Unit,
+    onOpenAddFriend: () -> Unit,
+    onOpenUsername: () -> Unit,
+) {
     val listState = rememberScalingLazyListState()
     val friends = transport.friends
+    val username = transport.myUsername
     ScalingLazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -106,14 +113,14 @@ private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpen
             }
         }
 
-        // Your friend code (tap to open the add-friend screen / share it).
+        // Your username (tap to view/change it).
         item {
             Chip(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onOpenAddFriend,
+                onClick = onOpenUsername,
                 colors = ChipDefaults.secondaryChipColors(),
                 icon = { Text("🪪", fontSize = 18.sp) },
-                label = { Text("Your code: ${transport.myCode ?: "…"}") },
+                label = { Text(if (username != null) "You: @$username" else "Choose a username") },
                 secondaryLabel = { Text(transport.statusText) },
             )
         }
@@ -136,7 +143,7 @@ private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpen
                     onClick = onOpenAddFriend,
                     colors = ChipDefaults.secondaryChipColors(),
                     icon = { Text("👤", fontSize = 18.sp) },
-                    label = { Text(friend.name) },
+                    label = { Text("@${friend.username}") },
                 )
             }
         }
