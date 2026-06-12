@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.watchie.core"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26

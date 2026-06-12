@@ -15,12 +15,12 @@ val keystoreProps = Properties().apply {
 
 android {
     namespace = "com.cutenotes.watch"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.predatuh.watchie"
         minSdk = 30
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 12
         versionName = "1.1"
     }
