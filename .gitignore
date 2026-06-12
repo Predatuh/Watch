@@ -1,0 +1,19 @@
+# Build outputs
+.gradle/
+build/
+app/build/
+
+# Local config (machine-specific SDK path; never commit)
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.DS_Store
+
+# Captures / logs
+*.log
+captures/
+
+# Screenshots saved during testing
+screenshot-*.png
