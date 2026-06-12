@@ -13,6 +13,10 @@ app/google-services.json
 release-keystore.jks
 keystore.properties
 
+# Cloud Functions deps
+functions/node_modules/
+.firebase/
+
 # Android Studio / IntelliJ
 .idea/
 *.iml

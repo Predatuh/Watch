@@ -12,6 +12,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -66,6 +67,7 @@ object FirebaseNoteTransport : NoteTransport {
             myUsername = db.collection("users").document(id).get().await().getString("username")
             startInboxListener(id)
             startFriendsListener(id)
+            registerPushToken(id)
             statusText = if (myUsername == null) "Choose a username" else "Connected"
         } catch (e: Exception) {
             statusText = "Offline: ${e.message?.take(40) ?: "error"}"
@@ -110,6 +112,15 @@ object FirebaseNoteTransport : NoteTransport {
         } catch (e: Exception) {
             statusText = "Error: ${e.message?.take(30) ?: "failed"}"
             UsernameResult.ERROR
+        }
+    }
+
+    /** Store this device's push token so the Cloud Function can reach it. */
+    private suspend fun registerPushToken(id: String) {
+        runCatching {
+            val token = FirebaseMessaging.getInstance().token.await()
+            db.collection("users").document(id)
+                .set(mapOf("fcmToken" to token), SetOptions.merge()).await()
         }
     }
 

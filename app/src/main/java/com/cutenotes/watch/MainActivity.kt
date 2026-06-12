@@ -1,8 +1,14 @@
 package com.cutenotes.watch
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -65,6 +71,19 @@ fun CuteNotesApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var pending by remember { mutableStateOf<IncomingNote?>(null) }
     var promptedUsername by remember { mutableStateOf(false) }
+
+    // Ask for notification permission (Android 13+) so pushes can show.
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {}
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     // Sign in / connect once on launch.
     LaunchedEffect(Unit) { transport.initialize() }
