@@ -42,7 +42,7 @@ import androidx.wear.compose.material.VignettePosition
 import kotlinx.coroutines.launch
 
 @Composable
-fun PairingScreen(onDone: () -> Unit) {
+fun AddFriendScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var entry by remember { mutableStateOf("") }
     val listState = rememberScalingLazyListState()
@@ -59,9 +59,9 @@ fun PairingScreen(onDone: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 30.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            item { Text("Connect", style = MaterialTheme.typography.title3, color = Color.White) }
+            item { Text("Add a friend", style = MaterialTheme.typography.title3, color = Color.White) }
 
-            item { Text("Your code", color = Color(0xFFAAAAB2), fontSize = 12.sp) }
+            item { Text("Your friend code", color = Color(0xFFAAAAB2), fontSize = 12.sp) }
             item {
                 Text(
                     text = transport.myCode ?: "…",
@@ -74,7 +74,7 @@ fun PairingScreen(onDone: () -> Unit) {
             item {
                 Text(
                     text = transport.statusText,
-                    color = if (transport.isPaired) Color(0xFF8FE3A0) else Color(0xFF9AA0AA),
+                    color = Color(0xFF9AA0AA),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                 )
@@ -82,7 +82,7 @@ fun PairingScreen(onDone: () -> Unit) {
 
             item {
                 Text(
-                    "Enter partner's code",
+                    "Enter friend's code",
                     color = Color(0xFFAAAAB2),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 6.dp),
@@ -92,18 +92,18 @@ fun PairingScreen(onDone: () -> Unit) {
             item {
                 Chip(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { scope.launch { if (transport.pairWith(entry)) onDone() } },
+                    onClick = { scope.launch { if (transport.addFriend(entry) != null) onDone() } },
                     colors = ChipDefaults.primaryChipColors(),
-                    label = { Text("Connect") },
+                    label = { Text("Add friend") },
                 )
             }
 
             item {
                 Chip(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    onClick = { scope.launch { transport.myCode?.let { if (transport.pairWith(it)) onDone() } } },
+                    onClick = { scope.launch { transport.myCode?.let { if (transport.addFriend(it) != null) onDone() } } },
                     colors = ChipDefaults.secondaryChipColors(),
-                    label = { Text("Pair with my own code") },
+                    label = { Text("Add myself") },
                     secondaryLabel = { Text("for testing on one watch") },
                 )
             }

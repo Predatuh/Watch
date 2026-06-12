@@ -20,7 +20,7 @@ import kotlinx.coroutines.delay
 
 /** Full-screen firework show on a night sky, the way a sent shell will look. */
 @Composable
-fun FireworkPlayer(type: FireworkType, incoming: Boolean, onDismiss: () -> Unit) {
+fun FireworkPlayer(type: FireworkType, incoming: Boolean, peer: String, onDismiss: () -> Unit) {
     LaunchedEffect(type) {
         delay(6000)
         onDismiss()
@@ -37,7 +37,7 @@ fun FireworkPlayer(type: FireworkType, incoming: Boolean, onDismiss: () -> Unit)
         FireworkEffect(type = type, modifier = Modifier.fillMaxSize())
 
         Text(
-            text = if (incoming) "From ${transport.partnerName} 🎆" else "Sent to ${transport.partnerName} 🎆",
+            text = if (incoming) "From $peer 🎆" else "Sent to $peer 🎆",
             color = Color.White,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,

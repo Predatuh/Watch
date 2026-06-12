@@ -23,14 +23,15 @@ import kotlinx.coroutines.tasks.await
 import kotlin.random.Random
 
 /**
- * Real phone-to-phone delivery via Firebase. Anonymous auth gives each watch a
- * stable id; a short pairing code links two of them; notes are written to the
- * recipient's inbox in Firestore and delivered live by a snapshot listener.
+ * Real delivery via Firebase. Anonymous auth gives each watch a stable id and a
+ * unique friend code. Adding a friend by code links you both; sending writes a
+ * note to that friend's inbox; a live listener delivers notes that arrive.
  *
  * Firestore layout:
- *   users/{uid}              -> { code, partnerUid }
- *   codes/{CODE}             -> { uid }
- *   notes/{uid}/inbox/{auto} -> { kind, ..., fromName, createdAt }
+ *   users/{uid}                   -> { code }
+ *   users/{uid}/friends/{friendUid} -> { code, name }
+ *   codes/{CODE}                  -> { uid }
+ *   notes/{uid}/inbox/{auto}      -> { kind, ..., fromName, createdAt }
  */
 object FirebaseNoteTransport : NoteTransport {
     private val auth by lazy { FirebaseAuth.getInstance() }
@@ -42,30 +43,25 @@ object FirebaseNoteTransport : NoteTransport {
     override val isDemo: Boolean = false
 
     private var uid: String? = null
-    private var partnerUid by mutableStateOf<String?>(null)
-
     override var myCode by mutableStateOf<String?>(null)
-        private set
-    override var partnerName by mutableStateOf("Partner")
         private set
     override var statusText by mutableStateOf("Connecting…")
         private set
-    override val isPaired: Boolean get() = partnerUid != null
+    override var friends by mutableStateOf<List<Friend>>(emptyList())
+        private set
 
-    private var listener: ListenerRegistration? = null
+    private var inboxListener: ListenerRegistration? = null
+    private var friendsListener: ListenerRegistration? = null
 
     override suspend fun initialize() {
         try {
             val user = auth.currentUser ?: auth.signInAnonymously().await().user
-            val id = user?.uid
-            if (id == null) {
-                statusText = "Sign-in failed"
-                return
-            }
+            val id = user?.uid ?: run { statusText = "Sign-in failed"; return }
             uid = id
             ensureProfile(id)
-            startListening(id)
-            statusText = if (partnerUid != null) "Connected" else "Share your code to pair"
+            startInboxListener(id)
+            startFriendsListener(id)
+            statusText = "Connected"
         } catch (e: Exception) {
             statusText = "Offline: ${e.message?.take(40) ?: "error"}"
         }
@@ -76,65 +72,96 @@ object FirebaseNoteTransport : NoteTransport {
         val snap = userRef.get().await()
         var code = snap.getString("code")
         if (code == null) {
-            code = generateCode()
-            db.collection("codes").document(code).set(mapOf("uid" to id)).await()
+            code = claimUniqueCode(id)
             userRef.set(mapOf("code" to code), SetOptions.merge()).await()
         }
         myCode = code
-        partnerUid = snap.getString("partnerUid")
     }
 
-    private fun startListening(id: String) {
-        listener?.remove()
-        listener = db.collection("notes").document(id).collection("inbox")
+    /** Generate a code and atomically claim it; retry on the rare collision. */
+    private suspend fun claimUniqueCode(id: String): String {
+        repeat(6) {
+            val candidate = generateCode()
+            val ref = db.collection("codes").document(candidate)
+            val claimed = try {
+                db.runTransaction { tx ->
+                    if (tx.get(ref).exists()) {
+                        false
+                    } else {
+                        tx.set(ref, mapOf("uid" to id))
+                        true
+                    }
+                }.await()
+            } catch (e: Exception) {
+                false
+            }
+            if (claimed == true) return candidate
+        }
+        return generateCode()
+    }
+
+    private fun startFriendsListener(id: String) {
+        friendsListener?.remove()
+        friendsListener = db.collection("users").document(id).collection("friends")
+            .addSnapshotListener { snaps, _ ->
+                if (snaps == null) return@addSnapshotListener
+                friends = snaps.documents.map { d ->
+                    val code = d.getString("code") ?: d.id
+                    Friend(uid = d.id, code = code, name = d.getString("name") ?: code)
+                }
+            }
+    }
+
+    private fun startInboxListener(id: String) {
+        inboxListener?.remove()
+        inboxListener = db.collection("notes").document(id).collection("inbox")
             .addSnapshotListener { snaps, _ ->
                 if (snaps == null) return@addSnapshotListener
                 for (change in snaps.documentChanges) {
                     if (change.type != DocumentChange.Type.ADDED) continue
                     val doc = change.document
                     val payload = mapToPayload(doc.data) ?: continue
-                    val from = doc.getString("fromName") ?: partnerName
+                    val from = doc.getString("fromName") ?: "Friend"
                     scope.launch { _incoming.emit(IncomingNote(from, payload)) }
                     doc.reference.delete()
                 }
             }
     }
 
-    override suspend fun pairWith(code: String): Boolean {
-        val me = uid ?: return false
+    override suspend fun addFriend(code: String): Friend? {
+        val me = uid ?: return null
         val clean = code.trim().uppercase()
-        if (clean.isEmpty()) return false
+        if (clean.isEmpty()) {
+            statusText = "Enter a code"
+            return null
+        }
         return try {
-            val codeSnap = db.collection("codes").document(clean).get().await()
-            val theirUid = codeSnap.getString("uid") ?: run {
+            val theirUid = db.collection("codes").document(clean).get().await().getString("uid")
+            if (theirUid == null) {
                 statusText = "Code not found"
-                return false
+                return null
             }
-            db.collection("users").document(me)
-                .set(mapOf("partnerUid" to theirUid), SetOptions.merge()).await()
-            // Mutual link so they can send back to us too.
-            db.collection("users").document(theirUid)
-                .set(mapOf("partnerUid" to me), SetOptions.merge()).await()
-            partnerUid = theirUid
-            partnerName = if (theirUid == me) "Yourself (test)" else "Partner"
-            statusText = "Connected"
-            true
+            val myName = myCode ?: "Friend"
+            // Add them to my friends...
+            db.collection("users").document(me).collection("friends").document(theirUid)
+                .set(mapOf("code" to clean, "name" to clean), SetOptions.merge()).await()
+            // ...and add me to theirs, so they can send back.
+            db.collection("users").document(theirUid).collection("friends").document(me)
+                .set(mapOf("code" to myName, "name" to myName), SetOptions.merge()).await()
+            statusText = "Added $clean"
+            Friend(theirUid, clean, clean)
         } catch (e: Exception) {
-            statusText = "Pair failed: ${e.message?.take(30) ?: "error"}"
-            false
+            statusText = "Add failed: ${e.message?.take(30) ?: "error"}"
+            null
         }
     }
 
-    override suspend fun send(payload: NotePayload) {
-        val target = partnerUid ?: run {
-            statusText = "Pair with someone first"
-            return
-        }
+    override suspend fun send(toUid: String, payload: NotePayload) {
         try {
             val data = payloadToMap(payload).toMutableMap()
-            data["fromName"] = "Alex"
+            data["fromName"] = myCode ?: "Friend"
             data["createdAt"] = FieldValue.serverTimestamp()
-            db.collection("notes").document(target).collection("inbox").add(data).await()
+            db.collection("notes").document(toUid).collection("inbox").add(data).await()
         } catch (e: Exception) {
             statusText = "Send failed: ${e.message?.take(30) ?: "error"}"
         }

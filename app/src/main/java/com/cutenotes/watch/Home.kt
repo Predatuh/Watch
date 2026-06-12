@@ -46,7 +46,7 @@ fun HomePager(
     onSendExpression: (Expression) -> Unit,
     onSendFirework: (FireworkType) -> Unit,
     onOpenDraw: () -> Unit,
-    onOpenPairing: () -> Unit,
+    onOpenAddFriend: () -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { PAGE_COUNT })
     val indicatorState = remember(pagerState) {
@@ -64,7 +64,7 @@ fun HomePager(
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
-                0 -> InboxPage(pending, onOpenIncoming, onOpenPairing)
+                0 -> InboxPage(pending, onOpenIncoming, onOpenAddFriend)
                 1 -> ExpressionsPage(onSendExpression)
                 2 -> FireworksPage(onSendFirework)
                 3 -> DrawPage(onOpenDraw)
@@ -77,8 +77,9 @@ fun HomePager(
 private fun pageColumn() = PaddingValues(horizontal = 8.dp, vertical = 30.dp)
 
 @Composable
-private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpenPairing: () -> Unit) {
+private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpenAddFriend: () -> Unit) {
     val listState = rememberScalingLazyListState()
+    val friends = transport.friends
     ScalingLazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -105,24 +106,48 @@ private fun InboxPage(pending: IncomingNote?, onOpenIncoming: () -> Unit, onOpen
             }
         }
 
-        // Connection status + pairing entry.
+        // Your friend code (tap to open the add-friend screen / share it).
         item {
             Chip(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onOpenPairing,
+                onClick = onOpenAddFriend,
                 colors = ChipDefaults.secondaryChipColors(),
-                icon = { Text(if (transport.isPaired) "🔗" else "➕", fontSize = 18.sp) },
-                label = { Text(if (transport.isPaired) "Connected" else "Connect a partner") },
+                icon = { Text("🪪", fontSize = 18.sp) },
+                label = { Text("Your code: ${transport.myCode ?: "…"}") },
                 secondaryLabel = { Text(transport.statusText) },
             )
         }
 
         item {
             Text(
-                text = "Swipe ← → to browse pages",
-                color = Color(0xFF888890),
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
+                text = "Friends",
+                color = Color(0xFFBBBBC4),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
+        if (friends.isEmpty()) {
+            item { Text("No friends yet — add one", color = Color(0xFF888890), fontSize = 12.sp) }
+        } else {
+            items(friends) { friend ->
+                Chip(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenAddFriend,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    icon = { Text("👤", fontSize = 18.sp) },
+                    label = { Text(friend.name) },
+                )
+            }
+        }
+
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                onClick = onOpenAddFriend,
+                colors = ChipDefaults.primaryChipColors(),
+                icon = { Text("➕", fontSize = 18.sp) },
+                label = { Text("Add friend") },
             )
         }
     }

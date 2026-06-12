@@ -168,7 +168,7 @@ private fun ToolButton(label: String, highlight: Boolean = false, onClick: () ->
  * This is how a hand-drawn note will look when it arrives on a partner's watch.
  */
 @Composable
-fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, onDismiss: () -> Unit) {
+fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, peer: String, onDismiss: () -> Unit) {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         progress.animateTo(1f, animationSpec = tween(durationMillis = 1500))
@@ -193,7 +193,7 @@ fun DrawnNotePlayer(strokes: List<DrawnStroke>, incoming: Boolean, onDismiss: ()
         }
 
         Text(
-            text = if (incoming) "From ${transport.partnerName} 💕" else "Sent to ${transport.partnerName} 💌",
+            text = if (incoming) "From $peer 💕" else "Sent to $peer 💌",
             color = Color.White,
             fontSize = 15.sp,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp),

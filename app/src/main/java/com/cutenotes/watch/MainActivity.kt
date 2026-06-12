@@ -41,14 +41,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Everything the screen can show: the home pager, or an overlay playing/drawing. */
+/** Everything the screen can show: the home pager, or an overlay. */
 private sealed interface Screen {
     data object Home : Screen
     data object Draw : Screen
-    data object Pairing : Screen
-    data class Playing(val expression: Expression, val incoming: Boolean) : Screen
-    data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean) : Screen
-    data class PlayingFirework(val type: FireworkType, val incoming: Boolean) : Screen
+    data object AddFriend : Screen
+    data class FriendPicker(val payload: NotePayload) : Screen
+    data class Playing(val expression: Expression, val incoming: Boolean, val peer: String) : Screen
+    data class PlayingDraw(val strokes: List<DrawnStroke>, val incoming: Boolean, val peer: String) : Screen
+    data class PlayingFirework(val type: FireworkType, val incoming: Boolean, val peer: String) : Screen
 }
 
 private fun expressionById(id: String): Expression =
@@ -61,16 +62,12 @@ fun CuteNotesApp() {
     val scope = rememberCoroutineScope()
 
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
-
-    // The most recent note waiting in the inbox. Seeded so the demo has one.
-    var pending by remember {
-        mutableStateOf<IncomingNote?>(IncomingNote(transport.partnerName, NotePayload.ExpressionNote("miss")))
-    }
+    var pending by remember { mutableStateOf<IncomingNote?>(null) }
 
     // Sign in / connect once on launch.
     LaunchedEffect(Unit) { transport.initialize() }
 
-    // Listen for notes arriving from the transport: update the inbox and buzz.
+    // Notes arriving from friends: update the inbox and buzz.
     LaunchedEffect(Unit) {
         transport.incoming.collect { note ->
             pending = note
@@ -78,13 +75,30 @@ fun CuteNotesApp() {
         }
     }
 
+    fun playerFor(payload: NotePayload, incoming: Boolean, peer: String): Screen = when (payload) {
+        is NotePayload.ExpressionNote -> Screen.Playing(expressionById(payload.expressionId), incoming, peer)
+        is NotePayload.FireworkNote -> Screen.PlayingFirework(payload.type, incoming, peer)
+        is NotePayload.DrawingNote -> Screen.PlayingDraw(payload.strokes, incoming, peer)
+    }
+
+    fun deliver(friend: Friend, payload: NotePayload) {
+        scope.launch { transport.send(friend.uid, payload) }
+        screen = playerFor(payload, incoming = false, peer = friend.name)
+    }
+
+    // Choose who to send to: straight through if you have exactly one friend.
+    fun startSend(payload: NotePayload) {
+        val fs = transport.friends
+        when {
+            fs.isEmpty() -> screen = Screen.AddFriend
+            fs.size == 1 -> deliver(fs[0], payload)
+            else -> screen = Screen.FriendPicker(payload)
+        }
+    }
+
     fun openPending() {
         val note = pending ?: return
-        screen = when (val p = note.payload) {
-            is NotePayload.ExpressionNote -> Screen.Playing(expressionById(p.expressionId), incoming = true)
-            is NotePayload.FireworkNote -> Screen.PlayingFirework(p.type, incoming = true)
-            is NotePayload.DrawingNote -> Screen.PlayingDraw(p.strokes, incoming = true)
-        }
+        screen = playerFor(note.payload, incoming = true, peer = note.from)
     }
 
     MaterialTheme {
@@ -104,43 +118,43 @@ fun CuteNotesApp() {
                     settings = settings,
                     pending = pending,
                     onOpenIncoming = { openPending() },
-                    onSendExpression = { expr ->
-                        scope.launch { transport.send(NotePayload.ExpressionNote(expr.id)) }
-                        screen = Screen.Playing(expr, incoming = false)
-                    },
-                    onSendFirework = { type ->
-                        scope.launch { transport.send(NotePayload.FireworkNote(type)) }
-                        screen = Screen.PlayingFirework(type, incoming = false)
-                    },
+                    onSendExpression = { startSend(NotePayload.ExpressionNote(it.id)) },
+                    onSendFirework = { startSend(NotePayload.FireworkNote(it)) },
                     onOpenDraw = { screen = Screen.Draw },
-                    onOpenPairing = { screen = Screen.Pairing },
+                    onOpenAddFriend = { screen = Screen.AddFriend },
                 )
 
-                is Screen.Pairing -> PairingScreen(onDone = { screen = Screen.Home })
+                is Screen.AddFriend -> AddFriendScreen(onDone = { screen = Screen.Home })
+
+                is Screen.FriendPicker -> FriendPicker(
+                    friends = transport.friends,
+                    onPick = { friend -> deliver(friend, current.payload) },
+                    onCancel = { screen = Screen.Home },
+                )
 
                 is Screen.Draw -> DrawScreen(
-                    onSend = { strokes ->
-                        scope.launch { transport.send(NotePayload.DrawingNote(strokes)) }
-                        screen = Screen.PlayingDraw(strokes, incoming = false)
-                    },
+                    onSend = { strokes -> startSend(NotePayload.DrawingNote(strokes)) },
                     onCancel = { screen = Screen.Home },
                 )
 
                 is Screen.Playing -> PlayingScreen(
                     expression = current.expression,
                     incoming = current.incoming,
+                    peer = current.peer,
                     onDismiss = { screen = Screen.Home },
                 )
 
                 is Screen.PlayingDraw -> DrawnNotePlayer(
                     strokes = current.strokes,
                     incoming = current.incoming,
+                    peer = current.peer,
                     onDismiss = { screen = Screen.Home },
                 )
 
                 is Screen.PlayingFirework -> FireworkPlayer(
                     type = current.type,
                     incoming = current.incoming,
+                    peer = current.peer,
                     onDismiss = { screen = Screen.Home },
                 )
             }
@@ -152,10 +166,9 @@ fun CuteNotesApp() {
 private fun PlayingScreen(
     expression: Expression,
     incoming: Boolean,
+    peer: String,
     onDismiss: () -> Unit,
 ) {
-    // Auto-close after a few seconds, or tap to close sooner. (The buzz for an
-    // incoming note already happened when it arrived in the inbox.)
     LaunchedEffect(expression.id) {
         delay(4500)
         onDismiss()
@@ -169,7 +182,7 @@ private fun PlayingScreen(
         ExpressionPlayer(expression = expression)
 
         Text(
-            text = if (incoming) "From ${transport.partnerName} 💕" else "Sent to ${transport.partnerName} 💌",
+            text = if (incoming) "From $peer 💕" else "Sent to $peer 💌",
             color = Color.White,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,

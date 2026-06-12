@@ -19,31 +19,35 @@ sealed interface NotePayload {
 /** A note that arrived from someone. */
 data class IncomingNote(val from: String, val payload: NotePayload)
 
+/** Someone on your friends list. [code] is their shareable friend code. */
+data class Friend(val uid: String, val code: String, val name: String)
+
 /**
  * Sends notes to your partner and reports notes that arrive. Swapping the demo
  * implementation for a real Firebase one later is just a matter of providing a
  * different object here — the rest of the app is written against this interface.
  */
 interface NoteTransport {
-    val partnerName: String
     val isDemo: Boolean
     val incoming: SharedFlow<IncomingNote>
-    suspend fun send(payload: NotePayload)
 
     /** Sign in / connect. No-op for the demo transport. */
     suspend fun initialize() {}
 
-    /** Your shareable pairing code (null in demo). */
+    /** Your shareable friend code (null until connected). */
     val myCode: String? get() = null
-
-    /** Whether a partner is linked. */
-    val isPaired: Boolean get() = true
 
     /** Short human-readable connection status. */
     val statusText: String get() = if (isDemo) "Demo mode" else "Connecting…"
 
-    /** Link to a partner by their code. Returns true on success. */
-    suspend fun pairWith(code: String): Boolean = true
+    /** Everyone on your friends list. */
+    val friends: List<Friend> get() = emptyList()
+
+    /** Add a friend by their code. Returns the friend on success, null otherwise. */
+    suspend fun addFriend(code: String): Friend?
+
+    /** Send a note to a specific friend (by their uid). */
+    suspend fun send(toUid: String, payload: NotePayload)
 }
 
 /**
@@ -52,15 +56,18 @@ interface NoteTransport {
  * full receive experience (banner, buzz, full-screen play) on a single watch.
  */
 object LoopbackTransport : NoteTransport {
-    override val partnerName: String = "Alex"
     override val isDemo: Boolean = true
+    override val myCode: String = "DEMO42"
+    override val friends: List<Friend> = listOf(Friend("demo-alex", "ALEX99", "Alex"))
 
     private val _incoming = MutableSharedFlow<IncomingNote>(extraBufferCapacity = 16)
     override val incoming: SharedFlow<IncomingNote> = _incoming.asSharedFlow()
 
-    override suspend fun send(payload: NotePayload) {
+    override suspend fun addFriend(code: String): Friend? = Friend("demo-$code", code, code)
+
+    override suspend fun send(toUid: String, payload: NotePayload) {
         delay(5000)
-        _incoming.emit(IncomingNote(partnerName, payload))
+        _incoming.emit(IncomingNote("Alex", payload))
     }
 }
 
