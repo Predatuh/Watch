@@ -1,9 +1,8 @@
 package com.cutenotes.watch
 
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 /**
  * What a note actually contains — the unit that travels between two watches.
@@ -15,8 +14,16 @@ sealed interface NotePayload {
     data class TextNote(val text: String, val effect: Effect) : NotePayload
 }
 
-/** A note that arrived from someone (by their username). */
-data class IncomingNote(val from: String, val payload: NotePayload)
+/** A note waiting in the inbox: [id] is the Firestore doc id (delete when seen). */
+data class PendingNote(val id: String, val from: String, val payload: NotePayload)
+
+/** A short human-readable summary of a note (used in the push notification). */
+fun noteSummary(payload: NotePayload): String = when (payload) {
+    is NotePayload.ExpressionNote -> expressionById(payload.expressionId).let { "${it.emoji} ${it.label}" }
+    is NotePayload.FireworkNote -> "🎆 Fireworks"
+    is NotePayload.TextNote -> payload.text
+    is NotePayload.DrawingNote -> "✏️ A drawing"
+}
 
 /** Someone on your friends list. [streak] = consecutive days you've both messaged. */
 data class Friend(val uid: String, val username: String, val streak: Int = 0)
@@ -36,7 +43,12 @@ fun isValidUsername(raw: String): Boolean =
  */
 interface NoteTransport {
     val isDemo: Boolean
-    val incoming: SharedFlow<IncomingNote>
+
+    /** Notes waiting to be viewed (the inbox). Shown one at a time, then consumed. */
+    val pendingNotes: List<PendingNote> get() = emptyList()
+
+    /** Mark a note as seen (deletes it from the inbox). */
+    suspend fun consumeNote(id: String) {}
 
     /** Sign in / connect. No-op for the demo transport. */
     suspend fun initialize() {}
@@ -85,8 +97,14 @@ object LoopbackTransport : NoteTransport {
     override var myUsername: String? = "you"
     override val friends: List<Friend> = listOf(Friend("demo-alex", "alex", streak = 5))
 
-    private val _incoming = MutableSharedFlow<IncomingNote>(extraBufferCapacity = 16)
-    override val incoming: SharedFlow<IncomingNote> = _incoming.asSharedFlow()
+    override var pendingNotes by mutableStateOf<List<PendingNote>>(emptyList())
+        private set
+
+    private var counter = 0
+
+    override suspend fun consumeNote(id: String) {
+        pendingNotes = pendingNotes.filterNot { it.id == id }
+    }
 
     override suspend fun setUsername(name: String): UsernameResult {
         if (!isValidUsername(name)) return UsernameResult.INVALID
@@ -98,8 +116,8 @@ object LoopbackTransport : NoteTransport {
         Friend("demo-${normalizeUsername(username)}", normalizeUsername(username))
 
     override suspend fun send(toUid: String, payload: NotePayload) {
-        delay(5000)
-        _incoming.emit(IncomingNote("alex", payload))
+        kotlinx.coroutines.delay(4000)
+        pendingNotes = pendingNotes + PendingNote("demo-${counter++}", "alex", payload)
     }
 }
 

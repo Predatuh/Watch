@@ -70,8 +70,8 @@ fun CuteNotesApp() {
     val scope = rememberCoroutineScope()
 
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
-    var pending by remember { mutableStateOf<IncomingNote?>(null) }
     var promptedUsername by remember { mutableStateOf(false) }
+    var shownNoteId by remember { mutableStateOf<String?>(null) }
 
     fun playerFor(payload: NotePayload, incoming: Boolean, peer: String): Screen = when (payload) {
         is NotePayload.ExpressionNote -> Screen.Playing(expressionById(payload.expressionId), incoming, peer)
@@ -80,10 +80,18 @@ fun CuteNotesApp() {
         is NotePayload.TextNote -> Screen.PlayingText(payload.text, payload.effect, incoming, peer)
     }
 
-    fun openPending() {
-        val note = pending ?: return
-        pending = null
-        screen = playerFor(note.payload, incoming = true, peer = note.from)
+    fun openNote(p: PendingNote) {
+        shownNoteId = p.id
+        screen = playerFor(p.payload, incoming = true, peer = p.from)
+    }
+
+    // Dismissing a received note marks it seen (removes it from the inbox).
+    fun dismissPlayer(wasIncoming: Boolean) {
+        if (wasIncoming) {
+            shownNoteId?.let { id -> scope.launch { transport.consumeNote(id) } }
+            shownNoteId = null
+        }
+        screen = Screen.Home
     }
 
     // Ask for notification permission (Android 13+) so pushes can show.
@@ -125,18 +133,18 @@ fun CuteNotesApp() {
         }
     }
 
-    // Notes arriving from friends: buzz and remember them.
-    LaunchedEffect(Unit) {
-        transport.incoming.collect { note ->
-            pending = note
-            Haptics.playNoteBuzz(context, settings)
-        }
+    // Buzz when a new note shows up in the inbox queue.
+    var lastPendingCount by remember { mutableStateOf(0) }
+    LaunchedEffect(transport.pendingNotes.size) {
+        if (transport.pendingNotes.size > lastPendingCount) Haptics.playNoteBuzz(context, settings)
+        lastPendingCount = transport.pendingNotes.size
     }
 
-    // Pop a pending note up automatically whenever you're on the home screen —
-    // both on arrival and when you next open the app after missing one.
-    LaunchedEffect(pending, screen) {
-        if (pending != null && screen is Screen.Home) openPending()
+    // Pop the next waiting note up automatically while on the home screen — covers
+    // arrival and opening the app after missing one. Shown one at a time.
+    LaunchedEffect(transport.pendingNotes.firstOrNull()?.id, screen) {
+        val p = transport.pendingNotes.firstOrNull()
+        if (p != null && screen is Screen.Home) openNote(p)
     }
 
     MaterialTheme {
@@ -151,8 +159,10 @@ fun CuteNotesApp() {
             }
         }
 
-        // Flip your wrist up to open the latest note — only while on the pager.
-        RaiseToWakeEffect(enabled = screen is Screen.Home) { openPending() }
+        // Flip your wrist up to open the latest waiting note — only while on the pager.
+        RaiseToWakeEffect(enabled = screen is Screen.Home) {
+            transport.pendingNotes.firstOrNull()?.let { openNote(it) }
+        }
 
         AnimatedContent(
             targetState = screen,
@@ -165,8 +175,8 @@ fun CuteNotesApp() {
             when (current) {
                 is Screen.Home -> HomePager(
                     settings = settings,
-                    pending = pending,
-                    onOpenIncoming = { openPending() },
+                    pending = transport.pendingNotes.firstOrNull(),
+                    onOpenIncoming = { transport.pendingNotes.firstOrNull()?.let { openNote(it) } },
                     onSendExpression = { startSend(NotePayload.ExpressionNote(it.id)) },
                     onSendFirework = { startSend(NotePayload.FireworkNote(it)) },
                     onOpenDraw = { screen = Screen.Draw },
@@ -198,21 +208,21 @@ fun CuteNotesApp() {
                     expression = current.expression,
                     incoming = current.incoming,
                     peer = current.peer,
-                    onDismiss = { screen = Screen.Home },
+                    onDismiss = { dismissPlayer(current.incoming) },
                 )
 
                 is Screen.PlayingDraw -> DrawnNotePlayer(
                     strokes = current.strokes,
                     incoming = current.incoming,
                     peer = current.peer,
-                    onDismiss = { screen = Screen.Home },
+                    onDismiss = { dismissPlayer(current.incoming) },
                 )
 
                 is Screen.PlayingFirework -> FireworkPlayer(
                     type = current.type,
                     incoming = current.incoming,
                     peer = current.peer,
-                    onDismiss = { screen = Screen.Home },
+                    onDismiss = { dismissPlayer(current.incoming) },
                 )
 
                 is Screen.PlayingText -> TextNotePlayer(
@@ -220,7 +230,7 @@ fun CuteNotesApp() {
                     effect = current.effect,
                     incoming = current.incoming,
                     peer = current.peer,
-                    onDismiss = { screen = Screen.Home },
+                    onDismiss = { dismissPlayer(current.incoming) },
                 )
             }
         }

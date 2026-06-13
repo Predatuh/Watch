@@ -16,10 +16,6 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -38,12 +34,12 @@ object FirebaseNoteTransport : NoteTransport {
     private val db by lazy { FirebaseFirestore.getInstance() }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private val _incoming = MutableSharedFlow<IncomingNote>(extraBufferCapacity = 16)
-    override val incoming: SharedFlow<IncomingNote> = _incoming.asSharedFlow()
     override val isDemo: Boolean = false
 
     private var uid: String? = null
     override var initialized by mutableStateOf(false)
+        private set
+    override var pendingNotes by mutableStateOf<List<PendingNote>>(emptyList())
         private set
     override var isSignedIn by mutableStateOf(false)
         private set
@@ -198,15 +194,21 @@ object FirebaseNoteTransport : NoteTransport {
         inboxListener = db.collection("notes").document(id).collection("inbox")
             .addSnapshotListener { snaps, _ ->
                 if (snaps == null) return@addSnapshotListener
-                for (change in snaps.documentChanges) {
-                    if (change.type != DocumentChange.Type.ADDED) continue
-                    val doc = change.document
-                    val payload = mapToPayload(doc.data) ?: continue
-                    val from = doc.getString("fromName") ?: "friend"
-                    scope.launch { _incoming.emit(IncomingNote(from, payload)) }
-                    doc.reference.delete()
+                // The inbox docs ARE the queue of unseen notes. We retain them as
+                // state (no fragile flow) and only delete when the watch shows one.
+                pendingNotes = snaps.documents.mapNotNull { doc ->
+                    val data = doc.data ?: return@mapNotNull null
+                    val payload = mapToPayload(data) ?: return@mapNotNull null
+                    PendingNote(doc.id, doc.getString("fromName") ?: "friend", payload)
                 }
             }
+    }
+
+    override suspend fun consumeNote(id: String) {
+        // Remove locally right away (snappy), then delete from the inbox.
+        pendingNotes = pendingNotes.filterNot { it.id == id }
+        val me = uid ?: return
+        runCatching { db.collection("notes").document(me).collection("inbox").document(id).delete().await() }
     }
 
     override suspend fun addFriend(username: String): Friend? {
@@ -242,6 +244,7 @@ object FirebaseNoteTransport : NoteTransport {
             val data = payloadToMap(payload).toMutableMap()
             data["fromName"] = myUsername ?: "friend"
             data["fromUid"] = uid ?: ""
+            data["summary"] = noteSummary(payload)
             data["createdAt"] = FieldValue.serverTimestamp()
             db.collection("notes").document(toUid).collection("inbox").add(data).await()
         } catch (e: Exception) {

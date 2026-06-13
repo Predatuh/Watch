@@ -41,7 +41,7 @@ private const val PAGE_COUNT = 6
 @Composable
 fun HomePager(
     settings: AppSettings,
-    pending: IncomingNote?,
+    pending: PendingNote?,
     onOpenIncoming: () -> Unit,
     onSendExpression: (Expression) -> Unit,
     onSendFirework: (FireworkType) -> Unit,
@@ -81,7 +81,7 @@ private fun pageColumn() = PaddingValues(horizontal = 8.dp, vertical = 30.dp)
 
 @Composable
 private fun InboxPage(
-    pending: IncomingNote?,
+    pending: PendingNote?,
     onOpenIncoming: () -> Unit,
     onOpenAddFriend: () -> Unit,
     onOpenUsername: () -> Unit,
