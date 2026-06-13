@@ -68,16 +68,18 @@ exports.onNoteCreated = onDocumentCreated(
       const token = userSnap.get("fcmToken");
       if (!token) return;
       const from = note.fromName || "a friend";
-      const summary = note.summary || "sent you a note";
       try {
         // A notification message so the system shows it even when the watch app
-        // is closed — buzzes, surfaces on wrist-raise, and shows the content
-        // like a text. Tapping opens the animated note.
+        // is fully closed — buzzes and surfaces on wrist-raise like a text.
+        // We intentionally DON'T reveal the note's content here so it stays a
+        // surprise; tapping opens the animated note. (Wear OS doesn't honor
+        // full-screen intents or background activity launches, so the scene
+        // can't auto-play without this tap when the app is closed.)
         await getMessaging().send({
           token,
           notification: {
-            title: `@${from}`,
-            body: summary,
+            title: "💌 New note",
+            body: `from @${from}`,
           },
           data: {fromName: String(from)},
           android: {

@@ -23,6 +23,9 @@ class WatchieMessagingService : FirebaseMessagingService() {
     // Notification messages are shown by the system when the app is in the
     // background/closed (buzz + wrist-raise, like a text). When the app is in
     // the foreground the in-app inbox listener plays the note directly, so we
-    // don't post a duplicate here.
+    // don't post a duplicate here. Wear OS does not honor full-screen intents
+    // or allow background activity launches, so a closed app can't auto-play
+    // the animation without a tap — the notification carries the content and
+    // tapping it opens the animated note.
     override fun onMessageReceived(message: RemoteMessage) {}
 }
